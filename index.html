@@ -3062,8 +3062,8 @@ const STAHOVANI = window.claude?.use ? window.claude.use('downloads').catch(() =
 async function ulozSoubor(blob, jmeno) {
   const dl = await STAHOVANI;
   if (dl) { try { await dl.save({ filename: jmeno, data: blob }); } catch (e) { if (e?.code !== 'declined') hlaska('Soubor se nepodařilo uložit'); } return; }
-  const f = new File([blob], jmeno, { type: blob.type });
-  if (DOTEK && navigator.canShare?.({ files: [f] })) { try { await navigator.share({ files: [f] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const f = new File([blob], jmeno, { type: blob.type }); // Kolo kstahnout (131A): Android stahuje přímo, iPhone/iPad Sdílet
+  if (DOTEK && !ANDROID && navigator.canShare?.({ files: [f] })) { try { await navigator.share({ files: [f] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = jmeno;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
 }
@@ -3184,11 +3184,11 @@ function otevriProjekt(soubor) {
   }).catch(() => hlaska('Soubor není projekt Trenérovy tabulky'));
 }
 // Kolo kdotrenera (124A): projekt do systémové nabídky Sdílet (Google Disk, e-mail…)
-const souborProjektu = () => new File([JSON.stringify({ format: 'trenerova-tabulka', verze: 1, nazev: nazevCviceni(), vybaveni: vybaveni(), cviceni: S })], nazevSouboru('.trenerova.json'), { type: 'application/json' });
-function lzeSdiletSoubor() { try { return !!navigator.canShare?.({ files: [new File(['{}'], 'a.json', { type: 'application/json' })] }); } catch { return false; } }
+const souborProjektu = () => new File([JSON.stringify({ format: 'trenerova-tabulka', verze: 1, nazev: nazevCviceni(), vybaveni: vybaveni(), cviceni: S })], nazevSouboru('.trenerova.txt'), { type: 'text/plain' }); // Kolo kstahnout: .txt – Chrome na Androidu .json přes Sdílet nepustí
+function lzeSdiletSoubor() { try { return !!navigator.canShare?.({ files: [new File(['{}'], 'a.txt', { type: 'text/plain' })] }); } catch { return false; } }
 async function sdiletProjekt() {
   try { await navigator.share({ files: [souborProjektu()], title: nazevCviceni() }); }
-  catch (e) { if (e?.name !== 'AbortError') hlaska('Sdílení se nepovedlo'); }
+  catch (e) { if (e?.name !== 'AbortError') { await ulozProjekt(); hlaska('Projekt stažen do zařízení'); } } // Kolo kstahnout: místo chyby se projekt stáhne
 }
 // Kolo kdotrenera (125A, 126A): Trenér dostane odkaz a obrázky kroků v Plánu (stejná adresa webu → společné úložiště prohlížeče)
 const TRENER = 'https://mek2424.github.io/traner/index.html', KLIC_PRO_TRENERA = 'trenerova-tabulka:pro-trenera';
@@ -3206,14 +3206,17 @@ async function nahledyKroku() {
   } finally { S.cur = c; if (S.pohled) S.pohled.mod = mod; nastavKameru(); vykresli(); }
   return ven;
 }
-async function doTrenera(okno) {
-  zastav(); zavriUlozOkno();
-  const u = await odkazProTrenera();
+async function ulozProTrenera(u) { // Kolo kstahnout: společné pro Do Trenéra i Odkaz pro Trenéra
   let nahledy = await nahledyKroku();
   for (;;) { // když se do úložiště nevejdou všechny, pošle se méně
     try { localStorage.setItem(KLIC_PRO_TRENERA, JSON.stringify({ url: u, cas: Date.now(), nahledy })); break; }
     catch { if (!nahledy.length) break; nahledy = nahledy.slice(0, Math.floor(nahledy.length / 2)); }
   }
+}
+async function doTrenera(okno) {
+  zastav(); zavriUlozOkno();
+  const u = await odkazProTrenera();
+  await ulozProTrenera(u);
   const cil = TRENER + '?url=' + encodeURIComponent(u);
   if (ANDROID && navigator.share) {
     try { await navigator.share({ title: nazevCviceni(), url: u }); return; } catch (e) { if (e?.name === 'AbortError') return; }
@@ -3260,7 +3263,7 @@ function obnovUlozOkno() {
     radek('odkaz', ik('odkaz'), 'Odkaz pro Trenéra', je3D() ? '3D' : 'plán') +
     radek('obrKrok1', ik('obrazek'), 'Obrázek 1. kroku', '640 × 360') +
     radek('prehravac', ik('prehravac'), 'Vyzkoušet přehrávač', '') +
-    '<input type="file" id="projektSoubor" accept=".json,application/json" hidden>';
+    '<input type="file" id="projektSoubor" accept=".json,.txt,application/json,text/plain" hidden>';
   const tv = ulozOkno.querySelector('[data-uloz="video"]');
   if (nahravani) { tv.classList.add('nahrava'); tv.querySelector('span').innerHTML = 'Nahrávám…<small>0,0 s</small>'; }
   const un = ulozOkno.querySelector('#ulozNazev');
@@ -3306,6 +3309,7 @@ const dataOdkazu = () => { const d = JSON.parse(snimek()); delete d.cur; d.vybav
 async function odkazProTrenera() { return `${ADRESA_TABULKY}#t=${FORMAT_ODKAZU}.${await zabal(dataOdkazu())}`; }
 async function kopirujOdkaz(tl) {
   const u = await odkazProTrenera();
+  setTimeout(() => ulozProTrenera(u).catch(() => {}), 0); // Kolo kstahnout (132A): náhledy pro Trenéra i při ručním vložení odkazu (až po zápisu do schránky)
   try { await navigator.clipboard.writeText(u); hlaska('Odkaz zkopírován'); }
   catch {
     // schránka nejde (třeba v náhledu): odkaz se ukáže v okně označený ke zkopírování
