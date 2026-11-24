@@ -160,11 +160,14 @@ svg.ik.fa { fill: currentColor; stroke: none; width: 16px; height: 16px; }
 .uloz-vyb i { font-style: normal; font-size: 12.5px; padding: 2px 8px; border-radius: 999px; background: var(--paper); color: var(--ink-soft); }
 /* Kolo kvideo (60A): přehrávač jako video – hřiště přes celý rámeček, velké Přehrát, dole průběh s čárkami kroků; při přehrávání se ovládání schová */
 body.prehravac .pilulka.vlevo, body.prehravac .pilulka.nastroje, body.prehravac #zasobnik, body.prehravac .strih,
-body.prehravac #kamera, body.prehravac #kameraOtevrit, body.prehravac .pilulka.vpravo.prazdna,
+body.prehravac .pilulka.vpravo.prazdna,
 body.prehravac .pilulka.vpravo > :not(#zpetDoEditoru) { display: none !important; }
 body.prehravac .pilulka.vpravo { top: 8px; right: 8px; left: auto; height: auto; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 17; }
 body.prehravac .pilulka.vpravo .tl { color: var(--ink-soft); background: none; }
 body.prehravac #plocha { top: 0; left: 0; width: 100%; height: 100%; }
+/* Kolo kobrana (68A): ovládání kamery i v přehrávači – vpravo nahoře, se schovaným ovládáním zmizí */
+body.prehravac .pilulka.kamera, body.prehravac .kamera-mini { top: 8px; z-index: 17; transition: opacity .3s; }
+.vid.skryto ~ .pilulka.kamera, .vid.skryto ~ .kamera-mini { opacity: 0; pointer-events: none; }
 body.prehravac { user-select: none; -webkit-user-select: none; }
 body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; cursor: default !important; }
 .vid { position: absolute; inset: 0; z-index: 16; pointer-events: none; }
@@ -364,6 +367,7 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
   .nt { padding: 0 12px; }
   #plocha { left: 8px; width: calc(100% - 16px); }
   .pilulka.kamera { top: auto; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+  body.prehravac .pilulka.kamera, body.prehravac .kamera-mini { top: auto; } /* Kolo kobrana: na telefonu nad lištou přehrávače */
 }
 
 /* Kolo iPad: pilulka kamery po řádcích, značky otočení po 90°, ruka, větší plochy pro prst */
@@ -1480,15 +1484,33 @@ function planKroku(i, predchozi) {
     pady[o.id] = { z0, zem };
     konce[o.id] = { ...(k.pos[o.id] || q), z: zem };
   }
+  // Kolo kobrana: kdy se hráč v kroku pohybuje (s); jinak celý krok
+  const casy = {};
+  if (i > 0) for (const L of plan) {
+    if (L.c.typ !== 'uder' || !L.posledni) continue;
+    const tz = Math.min(1, L.do) * k.dur, hyb = (id) => start[id] && k.pos[id] && Math.hypot(start[id].x - k.pos[id].x, start[id].y - k.pos[id].y) > .05;
+    if (L.c.cil && LIDE.includes(typ(L.c.cil))) {
+      // 65A: obránce ubrání na místě, kde krok začínal, pak odchází (zbytek kroku, nebo pauza, když z kroku skoro nic nezbývá)
+      if (hyb(L.c.cil)) casy[L.c.cil] = { od: tz, do: k.dur - tz >= .4 || pauzaKroku(k) < .2 ? k.dur : k.dur + pauzaKroku(k) };
+    } else if (!L.c.cil) {
+      // 66A: běh (nebo přesun) končící u konce útoku do prostoru – vyběhne hned a doběhne s míčem
+      for (const o of S.prvky) {
+        if (!LIDE.includes(o.typ) || casy[o.id] || !hyb(o.id)) continue;
+        const bc = behy[o.id], kon = bc ? { x: bc.x2, y: bc.y2 } : k.pos[o.id];
+        if (Math.hypot(kon.x - L.c.x2, kon.y - L.c.y2) < .8) casy[o.id] = { od: 0, do: tz };
+      }
+    }
+  }
   anim = a0; S.cur = c0; typyKroku(c0);
-  return { i, dur: k.dur, pauza: pauzaKroku(k), start, cil: k.pos, behy, lety: plan, virt, vysky, utok, konce, cary, pady };
+  return { i, dur: k.dur, pauza: pauzaKroku(k), start, cil: k.pos, behy, lety: plan, virt, vysky, utok, konce, cary, pady, casy };
 }
 // stav v čase tau od začátku kroku
 function stavAnimace(pl, tau) {
-  const u = Math.min(1, tau / pl.dur), e = pl.i === 0 ? 0 : hladce(u), pos = {}, cary = {};
+  const u = Math.min(1, tau / pl.dur), e0 = pl.i === 0 ? 0 : hladce(u), pos = {}, cary = {}, eHrace = {};
   for (const o of S.prvky) {
     const a = pl.start[o.id], b = pl.cil[o.id];
     if (!a || !b) { if (a || b) pos[o.id] = { ...(b || a) }; continue; }
+    const ca = pl.casy?.[o.id], e = ca ? hladce(Math.min(1, Math.max(0, (tau - ca.od) / Math.max(.01, ca.do - ca.od)))) : e0; // Kolo kobrana
     let x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
     const bc = pl.behy[o.id];
     if (bc) {
@@ -1499,9 +1521,10 @@ function stavAnimace(pl, tau) {
     let dr = ((b.r || 0) - (a.r || 0)) % 360; if (dr > 180) dr -= 360; if (dr < -180) dr += 360;
     const q = { ...b, x, y, r: (a.r || 0) + dr * e };
     if (a.z !== undefined || b.z !== undefined) { const za = a.z ?? b.z, zb = b.z ?? a.z; q.z = za + (zb - za) * e; }
-    pos[o.id] = q;
+    pos[o.id] = q; eHrace[o.id] = e;
   }
-  for (const c of pl.cary) if (c.typ === 'beh') cary[c.id] = pl.i === 0 ? hladce(u) : e; else if (c.typ === 'lajna') cary[c.id] = 1;
+  const e = e0, behHrace = Object.fromEntries(Object.entries(pl.behy).map(([id, c]) => [c.id, id]));
+  for (const c of pl.cary) if (c.typ === 'beh') cary[c.id] = pl.i === 0 ? hladce(u) : (eHrace[behHrace[c.id]] ?? e); else if (c.typ === 'lajna') cary[c.id] = 1;
   const virt = [];
   for (const L of pl.lety) {
     const p = (u - L.od) / (L.do - L.od);
@@ -1724,14 +1747,20 @@ const zaokr = (v) => Math.round(v * 100) / 100;
 
 // Šipka se přichytí ke středu hráče nebo míče, když začne/skončí blízko něj.
 // Kolo 3: míč má přednost (do 0,8 m) – šipka se k němu připne a vrátí jeho id
-function prichyt(p) {
+// Kolo kobrana: kde prvek stál na začátku aktuálního kroku (u prvního kroku tam, kde stojí)
+const polohaZacatku = (id) => (S.cur > 0 && S.kroky[S.cur - 1].pos[id]) || polohy()[id];
+function prichyt(p, cara = null) {
+  // Kolo kobrana (66A): konec běhu se přichytí ke konci útoku v tomto kroku
+  if (cara?.typ === 'beh') for (const c of S.cary) if (c.krok === S.cur && c.typ === 'uder' && c !== cara && Math.hypot(c.x2 - p.x, c.y2 - p.y) < .6) return { x: c.x2, y: c.y2 };
   for (const o of S.prvky) {
     if (!ZDROJE.includes(o.typ)) continue; const q = polohy()[o.id];
     if (q && Math.hypot(q.x - p.x, q.y - p.y) < .8) return { x: q.x, y: q.y, mic: o.id, id: o.id };
   }
   let nej = null, d0 = .55;
   let nejId = null;
-  for (const o of S.prvky) { const q = polohy()[o.id]; if (!q) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
+  // Kolo kobrana (65A): konec útoku se připíná k hráči tam, kde stál na začátku kroku (u ducha)
+  const kde = (id) => cara?.typ === 'uder' ? polohaZacatku(id) : polohy()[id];
+  for (const o of S.prvky) { const q = kde(o.id); if (!q) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
   return nej ? { x: nej.x, y: nej.y, id: nejId } : p;
 }
 // Šipky připnuté k míči v aktuálním kroku jdou za ním (a míč za nimi)
@@ -1790,7 +1819,8 @@ function caryZaMicem(id) {
   for (const o of S.prvky) if (o.vDele === id) { const r = polohy()[o.id]; if (r) { r.x = q.x; r.y = q.y; } }
   for (const c of S.cary) if (c.krok === S.cur && (c.mic === id || c.od === id)) { c.x1 = q.x; c.y1 = q.y; }
   // Kolo 3: připnutý konec šipky jde za prvkem, u kterého končí
-  for (const c of S.cary) if (c.krok === S.cur && c.cil === id) { c.x2 = q.x; c.y2 = q.y; }
+  for (const c of S.cary) if (c.krok === S.cur && c.cil === id) { const z = c.typ === 'uder' ? polohaZacatku(id) : q; c.x2 = z.x; c.y2 = z.y; } // Kolo kobrana: útok končí u obránce na začátku kroku
+  if (S.kroky[S.cur + 1]) for (const c of S.cary) if (c.krok === S.cur + 1 && c.typ === 'uder' && c.cil === id) { c.x2 = q.x; c.y2 = q.y; }
 }
 function micZaCarou(c) {
   const q = c.mic && c.krok === S.cur ? polohy()[c.mic] : null;
@@ -1798,7 +1828,7 @@ function micZaCarou(c) {
   if (q) { q.x = c.x1; q.y = c.y1; caryZaMicem(c.mic); }
   const qo = c.od && c.krok === S.cur ? polohy()[c.od] : null;
   if (qo) { qo.x = c.x1; qo.y = c.y1; caryZaMicem(c.od); }
-  const qc = c.cil && c.krok === S.cur ? polohy()[c.cil] : null;
+  const qc = c.cil && c.krok === S.cur && !(c.typ === 'uder' && S.cur > 0) ? polohy()[c.cil] : null; // Kolo kobrana: útok obránce nepřesouvá (končí u ducha)
   if (qc) { qc.x = c.x2; qc.y = c.y2; caryZaMicem(c.cil); }
 }
 // Míč puštěný do 0,6 m od začátku oblouku nebo útoku v tomto kroku se k němu připne
@@ -1812,7 +1842,7 @@ const kandidatMice = (id) => {
   const q = polohy()[id]; if (!q || S.cary.some((c) => c.krok === S.cur && c.mic === id)) return null;
   return S.cary.find((x) => x.krok === S.cur && !x.mic && (x.typ === 'oblouk' || x.typ === 'uder') && Math.hypot(x.x1 - q.x, x.y1 - q.y) < .6) || null;
 };
-const cilPrichyceni = (p) => { const b = prichyt(p); return b !== p ? { x: b.x, y: b.y } : null; };
+const cilPrichyceni = (p, cara = null) => { const b = prichyt(p, cara); return b !== p ? { x: b.x, y: b.y } : null; };
 function pripniMic(id) {
   const q = polohy()[id]; if (!q || S.cary.some((c) => c.krok === S.cur && c.mic === id)) return;
   const c = S.cary.find((x) => x.krok === S.cur && !x.mic && (x.typ === 'oblouk' || x.typ === 'uder') && Math.hypot(x.x1 - q.x, x.y1 - q.y) < .6);
@@ -1995,7 +2025,7 @@ plocha.addEventListener('pointerdown', (ev) => {
 plocha.addEventListener('pointermove', (ev) => {
   if (tah?.druh === 'gesto') { gesto(); return; }
   if (!tah) {
-    if (nastroj && CARY[nastroj]) { const m = cilPrichyceni(naMetry(ev)); if (JSON.stringify(m) !== JSON.stringify(magnet)) { magnet = m; vykresliUchyty(); } }
+    if (nastroj && CARY[nastroj]) { const m = cilPrichyceni(naMetry(ev), { typ: nastroj }); if (JSON.stringify(m) !== JSON.stringify(magnet)) { magnet = m; vykresliUchyty(); } }
     else if (magnet) { magnet = null; vykresliUchyty(); }
     return;
   }
@@ -2041,7 +2071,7 @@ plocha.addEventListener('pointermove', (ev) => {
     micZaCarou(x);
   } else if (tah.druh === 'nova-cara') {
     const x = S.cary.find((k) => k.id === tah.id); x.x2 = zaokr(p.x); x.y2 = zaokr(p.y);
-    magnet = cilPrichyceni(p);
+    magnet = cilPrichyceni(p, x);
     x.ohyb = CARY[x.typ].ohyb * Math.min(1, Math.hypot(x.x2 - x.x1, x.y2 - x.y1) / 5);
   } else if (tah.druh === 'uchyt') {
     tah.zmeneno = true;
@@ -2074,7 +2104,7 @@ plocha.addEventListener('pointermove', (ev) => {
       x.vrchol = zaokr(Math.min(8, Math.max(1.5, zMid - (v.z1 + v.z2) / 4 + (v.z1 + v.z2) / 4)));
     } else {
       const x = S.cary.find((k) => k.id === vyber.id);
-      if (tah.role === 'a' || tah.role === 'b') magnet = cilPrichyceni(p);
+      if (tah.role === 'a' || tah.role === 'b') magnet = cilPrichyceni(p, tah.role === 'b' ? x : null);
       if (tah.role === 'a') { x.x1 = zaokr(p.x); x.y1 = zaokr(p.y); }
       else if (tah.role === 'b') { x.x2 = zaokr(p.x); x.y2 = zaokr(p.y); deloZaSipkou(x); }
       else {
@@ -2104,7 +2134,7 @@ function konecTahu(ev) {
   }
   if (tah.druh === 'nova-cara') {
     const x = S.cary.find((k) => k.id === tah.id);
-    const b = prichyt({ x: x.x2, y: x.y2 }); x.x2 = zaokr(b.x); x.y2 = zaokr(b.y);
+    const b = prichyt({ x: x.x2, y: x.y2 }, x); x.x2 = zaokr(b.x); x.y2 = zaokr(b.y);
     if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil;
     if (Math.hypot(x.x2 - x.x1, x.y2 - x.y1) < .4) { S.cary = S.cary.filter((k) => k.id !== x.id); historie.pop(); vyber = null; }
     nastroj = null; zvyrazniNastroj();
@@ -2112,7 +2142,7 @@ function konecTahu(ev) {
   }
   if (tah.druh === 'uchyt' && vyber?.druh === 'cara' && (tah.role === 'a' || tah.role === 'b')) {
     const x = S.cary.find((k) => k.id === vyber.id);
-    const b = prichyt(tah.role === 'a' ? { x: x.x1, y: x.y1 } : { x: x.x2, y: x.y2 });
+    const b = prichyt(tah.role === 'a' ? { x: x.x1, y: x.y1 } : { x: x.x2, y: x.y2 }, tah.role === 'b' ? x : null);
     if (tah.role === 'a') { x.x1 = zaokr(b.x); x.y1 = zaokr(b.y); if (b.mic && x.typ !== 'beh') x.mic = b.mic; else delete x.mic; if (!x.mic && b.id && x.typ !== 'lajna') x.od = b.id; else delete x.od; } else { x.x2 = zaokr(b.x); x.y2 = zaokr(b.y); if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil; }
   }
   if (tah.druh === 'prvek' && S.prvky.find((o) => o.id === tah.id)?.typ === 'mic') pripniMic(tah.id);
@@ -2965,7 +2995,7 @@ document.addEventListener('pointerdown', (e) => { if (ulozOkno && !e.target.clos
 $('#nazev').addEventListener('input', () => { S.nazev = $('#nazev').value; uloz(); });
 $('#nazev').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('#nazev').blur(); });
 // ------------------------------------------------------------ Kolo kodkaz: odkaz pro Trenéra a přehrávač
-const dataOdkazu = () => { const d = JSON.parse(snimek()); delete d.cur; return d; };
+const dataOdkazu = () => { const d = JSON.parse(snimek()); delete d.cur; d.vybaveni = vybaveni(); return d; }; // Kolo kobrana: vybavení pro Trenéra (67A)
 async function odkazProTrenera() { return `${ADRESA_TABULKY}#t=${FORMAT_ODKAZU}.${await zabal(dataOdkazu())}`; }
 async function kopirujOdkaz(tl) {
   const u = await odkazProTrenera();
