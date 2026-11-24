@@ -268,7 +268,7 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
 .krok b { font-weight: 700; white-space: nowrap; }
 .krok small { color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .krok[aria-current="true"] { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
-.krok .uchyt { position: absolute; right: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; touch-action: none; display: grid; place-items: center; }
+.krok .uchyt { position: absolute; right: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; touch-action: pan-x; display: grid; place-items: center; }
 .krok .uchyt::after { content: ""; width: 3px; height: 16px; border-radius: 2px; background: var(--ink-faint); opacity: .6; }
 .krok .zrus { width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: var(--ink-faint); cursor: pointer; display: grid; place-items: center; padding: 0; flex: none; }
 .krok .zrus:hover { background: rgba(194,69,69,.15); color: var(--danger); }
@@ -1363,9 +1363,7 @@ function urciNadhoz(x, b, daleko) {
   const q = kdo ? polohy()[kdo] : null;
   if (x.typ !== 'oblouk' || !q || !daleko || Math.hypot(q.x - x.x1, q.y - x.y1) >= .8) { delete x.nadhoz; return false; }
   x.nadhoz = true; x.cil = kdo; x.x2 = zaokr(q.x); x.y2 = zaokr(q.y); x.ohyb = 0;
-  const k = S.kroky[x.krok], T = casNadhozu(x);
-  if (k && k.dur < T + .5) k.dur = Math.ceil((T + .5) * 10) / 10; // krátký krok se prodlouží, ať po nadhozu zbyde čas na úder
-  return true;
+  return true; // Kolo kdelka (122A): krok se sám neprodlužuje
 }
 // Kolo 3: konec šipky ve 3D – u hráče (do 0,6 m) ho hráč bere (oblouk 1 m, útok 0,7 m), jinak míč dopadne na zem
 function vyskaKonce(c) {
@@ -2830,11 +2828,16 @@ $('#kroky').addEventListener('pointerdown', (ev) => {
   // při přehrávání: přehrávání skončí, klepnutý krok se vybere (krok se hned překreslí, klik by se ztratil)
   if (hraje) { zastav(); const k0 = ev.target.closest('.krok'); if (k0 && !ev.target.closest('.uchyt, .zrus')) { S.cur = +k0.dataset.i; potlacKlik = true; zmena(); } return; }
   const u = ev.target.closest('[data-uchyt]'), pz = ev.target.closest('[data-pauza]');
+  if (u && ev.pointerType !== 'mouse') { // Kolo kdelka (121A): na dotyku se délka mění až po podržení úchytu, jinak prst osu posouvá
+    const i = +u.dataset.uchyt, x0 = ev.clientX, id = ev.pointerId, el = u.closest('.krok') || u;
+    drzeni = { id, x: x0, el, cas: setTimeout(() => { drzeni = { id, el, drzi: true }; el.classList.add('drzi'); navigator.vibrate?.(12); zapamatuj(); tahKroku = { i, x: x0, d0: S.kroky[i].dur, id }; try { $('#kroky').setPointerCapture(id); } catch { /* prst už je pryč */ } }, DRZENI) };
+    return;
+  }
   if (u) { ev.preventDefault(); zapamatuj(); tahKroku = { i: +u.dataset.uchyt, x: ev.clientX, d0: S.kroky[+u.dataset.uchyt].dur, id: ev.pointerId }; u.setPointerCapture(ev.pointerId); return; }
   // Kolo 4: pauza na konci kroku – táhnutím šrafovaného úseku 0–3 s
   if (pz && ev.pointerType !== 'mouse') { // Kolo kosa: na dotyku se pauza mění až po podržení, jinak prst osu posouvá
     const i = +pz.dataset.pauza, x0 = ev.clientX, id = ev.pointerId;
-    drzeni = { id, x: x0, el: pz, cas: setTimeout(() => { drzeni = { id, el: pz, drzi: true }; pz.classList.add('drzi'); navigator.vibrate?.(12); zapamatuj(); tahKroku = { i, pauza: true, x: x0, d0: pauzaKroku(S.kroky[i]), id }; }, DRZENI) };
+    drzeni = { id, x: x0, el: pz, cas: setTimeout(() => { drzeni = { id, el: pz, drzi: true }; pz.classList.add('drzi'); navigator.vibrate?.(12); zapamatuj(); tahKroku = { i, pauza: true, x: x0, d0: pauzaKroku(S.kroky[i]), id }; try { $('#kroky').setPointerCapture(id); } catch { /* prst už je pryč */ } }, DRZENI) };
     return;
   }
   if (pz) { ev.preventDefault(); zapamatuj(); const i = +pz.dataset.pauza; tahKroku = { i, pauza: true, x: ev.clientX, d0: pauzaKroku(S.kroky[i]), id: ev.pointerId }; pz.setPointerCapture(ev.pointerId); return; }
@@ -2851,6 +2854,10 @@ const DRZENI = 450;
 let drzeni = null;
 $('#kroky').addEventListener('touchmove', (ev) => { if (presun?.drzi || drzeni?.drzi) ev.preventDefault(); }, { passive: false });
 $('#kroky').addEventListener('contextmenu', (ev) => ev.preventDefault());
+$('#kroky').addEventListener('touchstart', (ev) => { // Kolo kdelka
+  const t = ev.target; if (t.drzTm) return; t.drzTm = true;
+  t.addEventListener('touchmove', (e) => { if (presun?.drzi || drzeni?.drzi) e.preventDefault(); }, { passive: false });
+}, { passive: true });
 $('#kroky').addEventListener('pointercancel', () => { if (presun) { clearTimeout(presun.cas); presun.el.classList.remove('drzi'); presun = null; } if (drzeni) { clearTimeout(drzeni.cas); drzeni.el.classList.remove('drzi'); drzeni = null; } });
 function kopirujKrok(i) {
   zapamatuj(); const zaloha = historie[historie.length - 1];
