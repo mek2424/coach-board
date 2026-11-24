@@ -473,10 +473,11 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
 
 /* Kolo 4: pauza za krokem (šrafovaný úsek), hlava přehrávání, přetahování kroků */
 .kroky { position: relative; }
-.pauza { flex: none; border: 1px solid var(--line); border-radius: 7px; cursor: ew-resize; touch-action: none; display: grid; place-items: center;
+.pauza { flex: none; border: 1px solid var(--line); border-radius: 7px; cursor: ew-resize; touch-action: pan-x; display: grid; place-items: center;
   font-size: 11px; color: var(--ink-faint); font-variant-numeric: tabular-nums; overflow: hidden; white-space: nowrap;
   background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 7px); }
-.krok { touch-action: none; }
+.krok { touch-action: pan-x; } /* Kolo kosa: prstem se osa posouvá */
+.krok.drzi { z-index: 3; box-shadow: var(--shadow); transform: scale(1.05); transition: transform .12s; }
 .krok.tazeny { z-index: 3; box-shadow: var(--shadow); cursor: grabbing; }
 /* časová osa: tažení kroků a pauz neoznačuje text */
 .strih { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -2828,15 +2829,43 @@ $('#kroky').addEventListener('pointerdown', (ev) => {
   const u = ev.target.closest('[data-uchyt]'), pz = ev.target.closest('[data-pauza]');
   if (u) { ev.preventDefault(); zapamatuj(); tahKroku = { i: +u.dataset.uchyt, x: ev.clientX, d0: S.kroky[+u.dataset.uchyt].dur, id: ev.pointerId }; u.setPointerCapture(ev.pointerId); return; }
   // Kolo 4: pauza na konci kroku – táhnutím šrafovaného úseku 0–3 s
+  if (pz && ev.pointerType !== 'mouse') { // Kolo kosa: na dotyku se pauza mění až po podržení, jinak prst osu posouvá
+    const i = +pz.dataset.pauza, x0 = ev.clientX, id = ev.pointerId;
+    drzeni = { id, x: x0, el: pz, cas: setTimeout(() => { drzeni = { id, el: pz, drzi: true }; pz.classList.add('drzi'); navigator.vibrate?.(12); zapamatuj(); tahKroku = { i, pauza: true, x: x0, d0: pauzaKroku(S.kroky[i]), id }; }, DRZENI) };
+    return;
+  }
   if (pz) { ev.preventDefault(); zapamatuj(); const i = +pz.dataset.pauza; tahKroku = { i, pauza: true, x: ev.clientX, d0: pauzaKroku(S.kroky[i]), id: ev.pointerId }; pz.setPointerCapture(ev.pointerId); return; }
   // Kolo 4 (11A): krok jde přetáhnout na jiné místo
   const k = ev.target.closest('.krok');
-  if (k && !ev.target.closest('.zrus') && S.kroky.length > 1) presun = { i: +k.dataset.i, x: ev.clientX, el: k, id: ev.pointerId, jede: false };
+  if (k && !ev.target.closest('.zrus')) {
+    presun = { i: +k.dataset.i, x: ev.clientX, el: k, id: ev.pointerId, jede: false, dotyk: ev.pointerType !== 'mouse', drzi: false };
+    // Kolo kosa: podržení – pak tažení krok přesune, puštění na místě ho zkopíruje
+    const p0 = presun; p0.cas = setTimeout(() => { if (presun !== p0 || p0.jede) return; p0.drzi = true; k.classList.add('drzi'); navigator.vibrate?.(12); }, DRZENI);
+  }
 });
+// Kolo kosa: podržení na dotyku – tah po podržení osu neposouvá
+const DRZENI = 450;
+let drzeni = null;
+$('#kroky').addEventListener('touchmove', (ev) => { if (presun?.drzi || drzeni?.drzi) ev.preventDefault(); }, { passive: false });
+$('#kroky').addEventListener('contextmenu', (ev) => ev.preventDefault());
+$('#kroky').addEventListener('pointercancel', () => { if (presun) { clearTimeout(presun.cas); presun.el.classList.remove('drzi'); presun = null; } if (drzeni) { clearTimeout(drzeni.cas); drzeni.el.classList.remove('drzi'); drzeni = null; } });
+function kopirujKrok(i) {
+  zapamatuj(); const zaloha = historie[historie.length - 1];
+  const novy = JSON.parse(JSON.stringify(S.kroky[i])), mapa = {};
+  const kopie = S.cary.filter((c) => c.krok === i).map((c) => { const n = { ...JSON.parse(JSON.stringify(c)), id: noveId(), krok: i + 1 }; mapa[c.id] = n.id; return n; });
+  for (const c of kopie) if (c.odraz && mapa[c.odraz]) c.odraz = mapa[c.odraz];
+  S.cary = S.cary.map((c) => (c.krok > i ? { ...c, krok: c.krok + 1 } : c)).concat(kopie);
+  S.kroky.splice(i + 1, 0, novy);
+  S.cur = i + 1; vyber = null; vice = null; zmena();
+  hlaska('Zkopírováno', () => { S = JSON.parse(zaloha); historie.pop(); zmena(); });
+}
 $('#kroky').addEventListener('pointermove', (ev) => {
+  if (drzeni && ev.pointerId === drzeni.id && !drzeni.drzi) { if (Math.abs(ev.clientX - drzeni.x) > 8) { clearTimeout(drzeni.cas); drzeni = null; } } // Kolo kosa
   if (presun && ev.pointerId === presun.id) {
     const dx = ev.clientX - presun.x;
-    if (!presun.jede && Math.abs(dx) > 8) { presun.jede = true; presun.el.classList.add('tazeny'); $('#kroky').classList.add('presouva'); presun.el.setPointerCapture(ev.pointerId); }
+    // Kolo kosa: na dotyku bez podržení prst posouvá osu; jen jeden krok se přesunout nedá
+    if (!presun.jede && Math.abs(dx) > 8 && ((presun.dotyk && !presun.drzi) || S.kroky.length < 2)) { clearTimeout(presun.cas); presun.el.classList.remove('drzi'); presun = null; return; }
+    if (!presun.jede && Math.abs(dx) > 8) { clearTimeout(presun.cas); presun.el.classList.remove('drzi'); presun.jede = true; presun.el.classList.add('tazeny'); $('#kroky').classList.add('presouva'); presun.el.setPointerCapture(ev.pointerId); }
     if (presun.jede) {
       presun.el.style.transform = `translateX(${dx}px)`;
       // ostatní kroky (i s pauzami) uhnou a uvolní místo, kam se přetahovaný krok vloží
@@ -2863,9 +2892,11 @@ $('#kroky').addEventListener('pointermove', (ev) => {
   if (d !== S.kroky[tahKroku.i].dur) { S.kroky[tahKroku.i].dur = d; vykresliKroky(); }
 });
 $('#kroky').addEventListener('pointerup', (ev) => {
+  if (drzeni) { clearTimeout(drzeni.cas); drzeni.el.classList.remove('drzi'); drzeni = null; } // Kolo kosa
   if (presun) {
-    const p = presun; presun = null;
+    const p = presun; presun = null; clearTimeout(p.cas); p.el.classList.remove('drzi');
     $('#kroky').classList.remove('presouva');
+    if (!p.jede && p.drzi) { potlacKlik = true; kopirujKrok(p.i); return; } // Kolo kosa: podržet a pustit = kopie
     if (!p.jede) return;
     potlacKlik = true;
     // nové místo: to, které ostatní kroky při tažení uvolnily
