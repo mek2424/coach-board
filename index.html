@@ -817,6 +817,8 @@ const CARY = {
   odraz:  { nazev: 'Odraz', barva: '#ffffff', ohyb: 0 }, // odraz míče po útoku – vzniká jen tlačítkem u útoku, začátek trvale na dopadu
 };
 
+// Kolo kzorne (116B): zorné pole v kroku (při přehrávání krok, který se právě hraje); bez údaje v kroku platí dřívější nastavení prvku
+function kuzelVKroku(o) { const q = S.kroky[S.cur]?.pos?.[o.id]; return q && 'kuzel' in q ? !!q.kuzel : !!o.kuzel; }
 function kresliPrvek(o, p, vybrany, podlaha3d = false) {
   const t = TYPY[o.typ];
   // Kolo 3: ve 3D stojí postava v horní vrstvě; na podlaze zůstane stopa (u hráčů poloprůhledný symbol) a zorné pole
@@ -826,7 +828,7 @@ function kresliPrvek(o, p, vybrany, podlaha3d = false) {
   const barva = o.barva || t.barva;
   const ob = { ...o, barva };
   let s = '';
-  if (o.kuzel && t.kuzel) {
+  if (kuzelVKroku(o) && t.kuzel) {
     const d = 3.2, uhel = 35 * Math.PI / 180;
     const gid = 'kz' + o.id;
     if (podlaha3d) {
@@ -2427,7 +2429,7 @@ function ukazPlovak() {
   if (!plovak) { plovak = document.createElement('div'); plovak.className = 'plovak'; $('#jeviste').appendChild(plovak); }
   const pripnuteCary = vyber.druh === 'prvek' ? S.cary.filter((x) => x.od === vyber.id || x.cil === vyber.id).length : 0;
   const qk = vyber.druh === 'prvek' ? krok().pos[o.id] || {} : {};
-  const klic = vyber.druh + vyber.id + (o.typ || '') + 'c' + S.cur + (qk.vyskok ? 'V' : '') + (qk.skok || '') + 'p' + pripnuteCary + (S.cary.some((x) => x.odraz === vyber.id) ? 'o' : '') + (o.vDele ? 'd' : '') + (o.kuzel ? 'k' : '') + (o.gravitace === false ? 'g' : '') + (o.vyskok ? 'v' : '') + barva + (o.styl || '') + (o.konec || '');
+  const klic = vyber.druh + vyber.id + (o.typ || '') + 'c' + S.cur + (qk.vyskok ? 'V' : '') + (qk.skok || '') + 'p' + pripnuteCary + (S.cary.some((x) => x.odraz === vyber.id) ? 'o' : '') + (o.vDele ? 'd' : '') + (kuzelVKroku(o) ? 'k' : '') + (o.gravitace === false ? 'g' : '') + (o.vyskok ? 'v' : '') + barva + (o.styl || '') + (o.konec || '');
   if (plovak.dataset.klic !== klic) {
     plovak.dataset.klic = klic;
     let h = '';
@@ -2456,7 +2458,7 @@ function ukazPlovak() {
     // Kolo kkrok: výskok v tomto kroku – útok: ze země / z výskoku, blok: Auto / Vyskočí / Nevyskočí
     if (vyber.druh === 'prvek' && o.typ === 'utok') h += `<button type="button" data-a="vyskok" aria-pressed="${!!qk.vyskok}" title="${qk.vyskok ? 'Útok z výskoku' : 'Útok ze země'} (v tomto kroku)" aria-label="Útok z výskoku">${ik('vyskok')}</button>`;
     if (vyber.druh === 'prvek' && ['blok', 'blok2', 'blok3'].includes(t.stoji)) h += `<button type="button" data-a="skokBloku" data-stav="${qk.skok || 'auto'}" aria-pressed="${qk.skok === 'ano'}" title="${{ ano: 'Vyskočí', ne: 'Nevyskočí' }[qk.skok] || 'Výskok auto (při útoku z druhé strany)'} (v tomto kroku)" aria-label="Výskok bloku">${ik('vyskok')}</button>`;
-    if (vyber.druh === 'prvek' && t.kuzel) h += `<button type="button" data-a="kuzel" aria-pressed="${!!o.kuzel}" title="Zorné pole" aria-label="Zorné pole">${ik('kuzel')}</button>`;
+    if (vyber.druh === 'prvek' && t.kuzel) h += `<button type="button" data-a="kuzel" aria-pressed="${kuzelVKroku(o)}" title="Zorné pole" aria-label="Zorné pole">${ik('kuzel')}</button>`;
     if (vyber.druh === 'cara') {
       // Kolo 2: styl a konec čáry
       const styl = o.styl || VYCHOZI_STYL[o.typ];
@@ -2562,7 +2564,7 @@ $('#jeviste').addEventListener('click', (ev) => {
   else if (a === 'vyskok') { zapamatuj(); const q = krok().pos[vyber.id]; if (q.vyskok) delete q.vyskok; else q.vyskok = true; zmena(); }
   else if (a === 'skokBloku') { zapamatuj(); const q = krok().pos[vyber.id], dal = { ano: 'ne', ne: undefined }; if (q.skok in dal) { if (dal[q.skok]) q.skok = dal[q.skok]; else delete q.skok; } else q.skok = 'ano'; zmena(); }
   else if (a === 'gravitace') { zapamatuj(); const o = S.prvky.find((x) => x.id === vyber.id); if (o.gravitace === false) delete o.gravitace; else o.gravitace = false; zmena(); }
-  else if (a === 'kuzel') { zapamatuj(); const o = S.prvky.find((x) => x.id === vyber.id); o.kuzel = !o.kuzel; zmena(); }
+  else if (a === 'kuzel') { zapamatuj(); const o = S.prvky.find((x) => x.id === vyber.id), q = krok().pos[vyber.id]; if (q) q.kuzel = !kuzelVKroku(o); zmena(); } // Kolo kzorne: jen v tomto kroku
   else if (a === 'styl') { zapamatuj(); const c = S.cary.find((x) => x.id === vyber.id); c.styl = b.dataset.v; zmena(); }
   else if (a === 'konec') { zapamatuj(); const c = S.cary.find((x) => x.id === vyber.id); c.konec = c.konec === 'bez' ? 'sipka' : 'bez'; zmena(); }
   else if (a === 'kopie') duplikuj();
