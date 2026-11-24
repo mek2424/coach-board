@@ -1058,9 +1058,10 @@ function vykresliZony() {
   }
   $('#vrstvaZon').innerHTML = s;
 }
+let bezDuchu = false; // Kolo kbezduchu: při vykreslení obrázku bez duchů
 function vykresliDuchy() {
   let s = '';
-  if (S.cur > 0 && !anim) {
+  if (S.cur > 0 && !anim && !bezDuchu) {
     const pred = S.kroky[S.cur - 1].pos, ted = polohy();
     for (const o of S.prvky) {
       const a = pred[o.id], b = ted[o.id];
@@ -1111,10 +1112,10 @@ function vykresliPlochu() {
   vykresliDuchy();
   let c = '';
   if (anim) {
-    for (const x of S.cary) if (x.krok === S.cur - 1) c += kresliCaru(x, false, true, je3D());
+    if (!bezDuchu) for (const x of S.cary) if (x.krok === S.cur - 1) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu
     for (const x of S.cary) if (x.krok === S.cur) { const p = anim.cary[x.id] ?? 1; if (p > 0) c += odhal(kresliCaru(x, false, false, je3D()), x, p); }
   } else {
-    for (const x of S.cary) if (x.krok !== S.cur) c += kresliCaru(x, false, true, je3D());
+    if (!bezDuchu) for (const x of S.cary) if (x.krok !== S.cur) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu
     for (const x of S.cary) if (x.krok === S.cur) c += kresliCaru(x, jeVybrano('cara', x.id), false, je3D());
   }
   $('#vrstvaCar').innerHTML = c;
@@ -3122,8 +3123,8 @@ async function vykresliSnimek(ctx, w, h) {
 }
 // scéna bez výběru a úchytů (po exportu se výběr vrátí)
 async function bezVyberu(fn) {
-  const sv = vyber, sm = vice; vyber = null; vice = null; zavriPlovak(); vykresliPlochu();
-  try { return await fn(); } finally { vyber = sv; vice = sm; vykresliPlochu(); }
+  const sv = vyber, sm = vice; vyber = null; vice = null; bezDuchu = true; zavriPlovak(); vykresliPlochu(); // Kolo kbezduchu: obrázky bez duchů
+  try { return await fn(); } finally { vyber = sv; vice = sm; bezDuchu = false; vykresliPlochu(); }
 }
 async function ulozObrazek(w) {
   const h = Math.round(w * 9 / 16), cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -3141,6 +3142,7 @@ async function nahrajVideo(tl) {
   cv.style.cssText = 'position:fixed;left:-20000px;top:0;width:1280px;height:720px;pointer-events:none'; cv.setAttribute('aria-hidden', 'true');
   if (!typ || !cv.captureStream) { hlaska('Tenhle prohlížeč video nahrát neumí'); return; }
   zastav(); vyber = null; vice = null; nastroj = null; zavriPlovak(); zvyrazniNastroj();
+  bezDuchu = true; // Kolo kbezduchu: video bez duchů
   // snímek se kreslí do skrytého plátna a do nahrávaného se zkopíruje najednou (jinak se nahraje i rozkreslený snímek a obraz bliká)
   const buf = document.createElement('canvas'); buf.width = 1280; buf.height = 720;
   const ctx = cv.getContext('2d'), bctx = buf.getContext('2d'), snimek = async () => { await vykresliSnimek(bctx, 1280, 720); ctx.drawImage(buf, 0, 0); };
@@ -3157,7 +3159,7 @@ async function nahrajVideo(tl) {
   const t0 = performance.now();
   for (;;) {
     await new Promise((ok) => requestAnimationFrame(ok));
-    if (!hraje?.video) { rec.stop(); await hotovo; cv.remove(); nahravani = null; tl.classList.remove('nahrava'); obnovUlozOkno(); return; } // přerušeno (Esc)
+    if (!hraje?.video) { bezDuchu = false; rec.stop(); await hotovo; cv.remove(); nahravani = null; tl.classList.remove('nahrava'); obnovUlozOkno(); return; } // přerušeno (Esc)
     const T = (performance.now() - t0) / 1000;
     zobrazCas(Math.min(T, konec - 1e-4));
     await snimek();
@@ -3165,7 +3167,7 @@ async function nahrajVideo(tl) {
     if (T >= konec + DOZNENI) break;
   }
   rec.stop(); await hotovo; stream.getTracks().forEach((t) => t.stop()); cv.remove();
-  nahravani = null; tl.classList.remove('nahrava'); zastav(true); obnovUlozOkno();
+  nahravani = null; bezDuchu = false; tl.classList.remove('nahrava'); zastav(true); obnovUlozOkno();
   await ulozSoubor(new Blob(kusy, { type: typ.split(';')[0] }), nazevSouboru(typ.startsWith('video/mp4') ? '.mp4' : '.webm'));
 }
 // projekt: celé cvičení včetně názvu a vybavení; jde zase otevřít
