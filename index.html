@@ -3086,6 +3086,7 @@ vykresliZasobnik(); zvyrazniNastroj();
 vykresli();
 zvyrazniNastroj();
 if (PREHRAVAC) nastavPrehravac();
+if (PREHRAVAC && !PREHRAVAC.zaloha && new URLSearchParams(location.search).has('auto')) prehraj(); // Kolo kauto: ukázka v Trenérovi hraje sama
 if (chybaOdkazu) hlaska('Odkaz se nepodařilo otevřít');
 </script>
 </body></html>
