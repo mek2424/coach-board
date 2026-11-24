@@ -1449,6 +1449,9 @@ function planKroku(i, predchozi) {
     if (!mic && typ(h.mic) !== 'delo') {
       let d0 = .6;
       for (const o of S.prvky) { if (!MICE.includes(o.typ)) continue; const q = k.pos[o.id] || start[o.id]; if (!q) continue; const d = Math.hypot(q.x - h.x1, q.y - h.y1); if (d < d0) { d0 = d; mic = o.id; } }
+      // Kolo kmicdopad: míč postavený v kroku na místo dopadu (u konce řetězu) je ten, který letí
+      const kon = r[r.length - 1];
+      if (!mic) { let d1 = .6; for (const o of S.prvky) { if (!MICE.includes(o.typ) || pouzite.has(o.id) || o.vDele) continue; const q = k.pos[o.id]; if (!q) continue; const d = Math.hypot(q.x - kon.x2, q.y - kon.y2); if (d < d1) { d1 = d; mic = o.id; } } }
     }
     if (mic && pouzite.has(mic)) mic = null;
     if (mic) pouzite.add(mic); else { mic = 'v-' + h.id; virt.push({ id: mic, typ: 'mic' }); }
