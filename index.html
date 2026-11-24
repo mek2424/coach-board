@@ -891,7 +891,10 @@ function kresliCaru(c, vybrana, duch, podlaha3d = false) {
   const k = kontrolniBod(c);
   const uhelKonce = Math.atan2(c.y2 - k.cy, c.x2 - k.cx);
   let s = '';
-  if (c.typ === 'oblouk') {
+  if (jeNadhoz(c)) { // Kolo knadhoz
+    s += `<path d="${smyckaNadhozu(c)}" fill="none" stroke="${barva}" stroke-width=".07" stroke-linecap="round"${pomlcky}/>`;
+    if (hrot) s += sipka(c.x1 + .1, c.y1 - .3, Math.atan2(1.4, -.65), .34, barva);
+  } else if (c.typ === 'oblouk') {
     const zkr = hrot ? .22 : 0, ex = c.x2 - Math.cos(uhelKonce) * zkr, ey = c.y2 - Math.sin(uhelKonce) * zkr;
     s += `<path d="M${c.x1} ${c.y1} Q${k.cx} ${k.cy} ${ex} ${ey}" fill="none" stroke="${barva}" stroke-width=".07" stroke-linecap="round"${pomlcky}/>`;
     if (hrot) s += sipka(c.x2, c.y2, uhelKonce, .38, barva);
@@ -911,8 +914,9 @@ function kresliCaru(c, vybrana, duch, podlaha3d = false) {
     s += `<path d="M${c.x1 + nx * o} ${c.y1 + ny * o} L${ex + nx * o} ${ey + ny * o} M${c.x1 - nx * o} ${c.y1 - ny * o} L${ex - nx * o} ${ey - ny * o}" stroke="${barva}" stroke-width=".07" stroke-linecap="round"${pomlcky}/>`;
     if (hrot) s += sipka(c.x2, c.y2, Math.atan2(dy, dx), .5, barva);
   }
-  const zachyt = `<path d="M${c.x1} ${c.y1} Q${k.cx} ${k.cy} ${c.x2} ${c.y2}" fill="none" stroke="transparent" stroke-width=".7"/>`;
-  const zvyr = vybrana ? `<path d="M${c.x1} ${c.y1} Q${k.cx} ${k.cy} ${c.x2} ${c.y2}" fill="none" stroke="#FFC72C" stroke-opacity=".55" stroke-width=".3" stroke-linecap="round" pointer-events="none"/>` : '';
+  const dz = jeNadhoz(c) ? smyckaNadhozu(c) : `M${c.x1} ${c.y1} Q${k.cx} ${k.cy} ${c.x2} ${c.y2}`; // Kolo knadhoz
+  const zachyt = `<path d="${dz}" fill="none" stroke="transparent" stroke-width=".7"/>`;
+  const zvyr = vybrana ? `<path d="${dz}" fill="none" stroke="#FFC72C" stroke-opacity=".55" stroke-width=".3" stroke-linecap="round" pointer-events="none"/>` : '';
   return `<g class="cara" data-id="${c.id}" ${duch ? 'opacity=".28" pointer-events="none"' : 'style="cursor:pointer"'}>${zvyr}${zachyt}${s}${pripnuto}${pripnutoKonec}</g>`;
 }
 
@@ -1139,8 +1143,8 @@ function vykresliUchyty() {
   } else if (vyber?.druh === 'cara') {
     const c = S.cary.find((x) => x.id === vyber.id);
     if (c) {
-      s += (c.odraz ? '' : bod(c.x1, c.y1, 'a')) + bod(c.x2, c.y2, 'b');
-      if (c.typ !== 'uder' && c.typ !== 'odraz' && !(je3D() && c.typ === 'oblouk')) { const k = kontrolniBod(c); s += bod(k.vx, k.vy, 'ohyb', '#ffffff'); }
+      s += (c.odraz || jeNadhoz(c) ? '' : bod(c.x1, c.y1, 'a')) + bod(c.x2, c.y2, 'b'); // Kolo knadhoz: u nadhozu jen konec
+      if (c.typ !== 'uder' && c.typ !== 'odraz' && !jeNadhoz(c) && !(je3D() && c.typ === 'oblouk')) { const k = kontrolniBod(c); s += bod(k.vx, k.vy, 'ohyb', '#ffffff'); }
     }
   }
   if (magnet) s += `<circle class="magnet" cx="${magnet.x}" cy="${magnet.y}" r=".5" fill="#E8622C" fill-opacity=".18" stroke="#E8622C" stroke-width=".07" pointer-events="none"/><circle cx="${magnet.x}" cy="${magnet.y}" r=".08" fill="#E8622C" pointer-events="none"/>`;
@@ -1344,6 +1348,22 @@ function vyskyOblouku(c) {
   const z2 = vyskaKonce(c), H = Math.max(c.vrchol ?? VRCHOL, Math.max(z1, z2) + .3);
   return { z1, z2, H, z: (t) => z1 + (z2 - z1) * t + 4 * (H - (z1 + z2) / 2) * t * (1 - t) };
 }
+// Kolo knadhoz (111A, 112A): nadhoz = oblouk z rukou hráče zpět do jeho rukou; čas podle pádu z vrcholu
+const jeNadhoz = (c) => c?.typ === 'oblouk' && !!c.nadhoz;
+function casNadhozu(c) { const v = vyskyOblouku(c), g = 9.81; return Math.sqrt(2 * Math.max(.05, v.H - v.z1) / g) + Math.sqrt(2 * Math.max(.05, v.H - v.z2) / g); }
+const smyckaNadhozu = (c) => `M${c.x1} ${c.y1} C${c.x1 - .75} ${c.y1 - 1.7} ${c.x1 + .75} ${c.y1 - 1.7} ${c.x1 + .1} ${c.y1 - .3}`;
+// konec tahu šipky Oblouk: konec u hráče, u kterého šipka začala (do 0,8 m) → nadhoz
+function urciNadhoz(x, b, daleko) {
+  // konec se mohl přichytit k míči v rukou – pak platí hráč, který u něj stojí
+  let kdo = b.id && LIDE.includes(S.prvky.find((o) => o.id === b.id)?.typ) ? b.id : null;
+  if (!kdo && b.id) { let d0 = .8; for (const o of S.prvky) { if (!LIDE.includes(o.typ)) continue; const q = polohy()[o.id]; const d = q ? Math.hypot(q.x - b.x, q.y - b.y) : 9; if (d < d0) { d0 = d; kdo = o.id; } } }
+  const q = kdo ? polohy()[kdo] : null;
+  if (x.typ !== 'oblouk' || !q || !daleko || Math.hypot(q.x - x.x1, q.y - x.y1) >= .8) { delete x.nadhoz; return false; }
+  x.nadhoz = true; x.cil = kdo; x.x2 = zaokr(q.x); x.y2 = zaokr(q.y); x.ohyb = 0;
+  const k = S.kroky[x.krok], T = casNadhozu(x);
+  if (k && k.dur < T + .5) k.dur = Math.ceil((T + .5) * 10) / 10; // krátký krok se prodlouží, ať po nadhozu zbyde čas na úder
+  return true;
+}
 // Kolo 3: konec šipky ve 3D – u hráče (do 0,6 m) ho hráč bere (oblouk 1 m, útok 0,7 m), jinak míč dopadne na zem
 function vyskaKonce(c) {
   const uHrace = S.prvky.some((o) => { if (!['postava', 'blok', 'utok', 'blok2', 'blok3', 'nohy', 'trener', 'asist', 'figurina'].includes(TYPY[o.typ].stoji)) return false; const q = polohy()[o.id]; return q && Math.hypot(q.x - c.x2, q.y - c.y2) < .6; });
@@ -1387,7 +1407,8 @@ function odraz3D(c, p = 1) {
 }
 function oblouk3D(c, p = 1) {
   const t0 = CARY.oblouk, barva = c.barva || t0.barva, v = vyskyOblouku(c), vybrana = jeVybrano('cara', c.id);
-  const bod = (t) => K.proj(c.x1 + (c.x2 - c.x1) * t, c.y1 + (c.y2 - c.y1) * t, v.z(t));
+  const nh = jeNadhoz(c) ? .3 : 0; // Kolo knadhoz: nadhoz jako úzká smyčka, ať je vidět nahoru i dolů
+  const bod = (t) => K.proj(c.x1 + (c.x2 - c.x1) * t + nh * Math.sin(Math.PI * t), c.y1 + (c.y2 - c.y1) * t, v.z(t));
   const pts = []; for (let i = 0; i <= 40; i++) pts.push(bod(i / 40 * p));
   const mx = (c.x1 + c.x2) / 2, my = (c.y1 + c.y2) / 2, hm = Math.abs(K.proj(mx, my, 0)[1] - K.proj(mx, my, 1)[1]);
   const sw = Math.max(1.5, .07 * hm), hrot = c.konec !== 'bez' && p >= 1;
@@ -1579,7 +1600,9 @@ function planKroku(i, predchozi) {
   // lety míče: řetězy šipek (konec jedné = začátek další)
   const lety = cary.filter((c) => c.typ === 'oblouk' || c.typ === 'uder' || c.typ === 'odraz');
   const typ = (id) => S.prvky.find((o) => o.id === id)?.typ;
-  const predLet = (c) => MICE.includes(typ(c.mic)) || typ(c.mic) === 'delo' ? null : lety.find((p) => p !== c && Math.hypot(c.x1 - p.x2, c.y1 - p.y2) < .6) || null;
+  const predLet = (c) => MICE.includes(typ(c.mic)) || typ(c.mic) === 'delo' ? null
+    : (!jeNadhoz(c) && lety.find((p) => p !== c && jeNadhoz(p) && Math.hypot(c.x1 - p.x2, c.y1 - p.y2) < .6)) // Kolo knadhoz
+      || lety.find((p) => p !== c && !(jeNadhoz(c) && jeNadhoz(p)) && Math.hypot(c.x1 - p.x2, c.y1 - p.y2) < .6) || null;
   const retezy = [], pouzite = new Set();
   for (const hlava of lety.filter((c) => !predLet(c))) {
     const r = [hlava]; let x = hlava;
@@ -1603,6 +1626,10 @@ function planKroku(i, predchozi) {
     const tretiny = r.every((c) => c.typ === 'uder' || c.typ === 'odraz');
     const vahy = tretiny ? r.map(() => 1) : r.map((c) => Math.hypot(c.x2 - c.x1, c.y2 - c.y1) * (c.typ === 'uder' ? 1 / 3 : 1) || .01), suma = vahy.reduce((a, b) => a + b, 0);
     const F = tretiny ? Math.min(1, r.length / 3) : 1;
+    // Kolo knadhoz (112A): nadhoz trvá podle pádu z vrcholu, ostatní šipky řetězu si dělí zbytek kroku
+    const nad = r.map((c) => jeNadhoz(c) ? casNadhozu(c) / k.dur : 0), sN0 = nad.reduce((a, b) => a + b, 0), jenNad = r.every(jeNadhoz);
+    const kN = sN0 > (jenNad ? 1 : .85) ? (jenNad ? 1 : .85) / sN0 : 1, zbyva = 1 - sN0 * kN;
+    const sumaOst = r.reduce((a, c, n) => a + (jeNadhoz(c) ? 0 : vahy[n]), 0) || 1;
     let od = 0, zPred = null;
     r.forEach((c, n) => {
       let z;
@@ -1612,7 +1639,7 @@ function planKroku(i, predchozi) {
         const z1 = c.typ === 'odraz' ? (zPred ?? .11) : utokOdHrace(c)?.z ?? (typ(c.mic) === 'delo' ? VYSKY.delo - .2 : q?.z ?? zPred ?? VYSKY.mic), z2 = vyskaKonce(c);
         utok[c.id] = { z1, z2 }; z = (t) => z1 + (z2 - z1) * t;
       }
-      const delka = F * vahy[n] / suma;
+      const delka = sN0 ? (jeNadhoz(c) ? nad[n] * kN : zbyva * vahy[n] / sumaOst) : F * vahy[n] / suma; // Kolo knadhoz
       plan.push({ c, mic, virt: mic.startsWith('v-'), od, do: od + delka, z, posledni: n === r.length - 1 });
       od += delka; zPred = z(1);
     });
@@ -2234,6 +2261,7 @@ plocha.addEventListener('pointermove', (ev) => {
     micZaCarou(x);
   } else if (tah.druh === 'nova-cara') {
     const x = S.cary.find((k) => k.id === tah.id); x.x2 = zaokr(p.x); x.y2 = zaokr(p.y);
+    if (Math.hypot(x.x2 - x.x1, x.y2 - x.y1) > 1) tah.daleko = true; // Kolo knadhoz
     magnet = cilPrichyceni(p, x);
     x.ohyb = CARY[x.typ].ohyb * Math.min(1, Math.hypot(x.x2 - x.x1, x.y2 - x.y1) / 5);
   } else if (tah.druh === 'uchyt') {
@@ -2299,14 +2327,14 @@ function konecTahu(ev) {
     const x = S.cary.find((k) => k.id === tah.id);
     const b = prichyt({ x: x.x2, y: x.y2 }, x); x.x2 = zaokr(b.x); x.y2 = zaokr(b.y);
     if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil;
-    if (Math.hypot(x.x2 - x.x1, x.y2 - x.y1) < .4) { S.cary = S.cary.filter((k) => k.id !== x.id); historie.pop(); vyber = null; }
+    if (!urciNadhoz(x, b, tah.daleko) && Math.hypot(x.x2 - x.x1, x.y2 - x.y1) < .4) { S.cary = S.cary.filter((k) => k.id !== x.id); historie.pop(); vyber = null; }
     nastroj = null; zvyrazniNastroj();
     tah = null; zmena(); return;
   }
   if (tah.druh === 'uchyt' && vyber?.druh === 'cara' && (tah.role === 'a' || tah.role === 'b')) {
     const x = S.cary.find((k) => k.id === vyber.id);
     const b = prichyt(tah.role === 'a' ? { x: x.x1, y: x.y1 } : { x: x.x2, y: x.y2 }, tah.role === 'b' ? x : null);
-    if (tah.role === 'a') { x.x1 = zaokr(b.x); x.y1 = zaokr(b.y); if (b.mic && x.typ !== 'beh') x.mic = b.mic; else delete x.mic; if (!x.mic && b.id && x.typ !== 'lajna') x.od = b.id; else delete x.od; } else { x.x2 = zaokr(b.x); x.y2 = zaokr(b.y); if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil; }
+    if (tah.role === 'a') { x.x1 = zaokr(b.x); x.y1 = zaokr(b.y); if (b.mic && x.typ !== 'beh') x.mic = b.mic; else delete x.mic; if (!x.mic && b.id && x.typ !== 'lajna') x.od = b.id; else delete x.od; } else { x.x2 = zaokr(b.x); x.y2 = zaokr(b.y); if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil; urciNadhoz(x, b, true); }
   }
   if (tah.druh === 'prvek' && S.prvky.find((o) => o.id === tah.id)?.typ === 'mic') pripniMic(tah.id);
   if (tah.druh === 'prvek') {
