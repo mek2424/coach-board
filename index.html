@@ -150,6 +150,7 @@ svg.ik.fa { fill: currentColor; stroke: none; width: 16px; height: 16px; }
 .ios-plocha > span { display: grid; place-items: center; color: var(--brand); }
 .ios-plocha b { font-weight: 600; white-space: nowrap; }
 body.prehravac .ios-plocha { display: none !important; }
+body.prehravac #kameraRuka { display: none !important; } /* Kolo kstart: v přehrávači jen kamera pro diváka */
 /* Kolo kexport: okno Uložit */
 .uloz-okno { width: 280px; gap: 2px; padding: 8px; }
 .uloz-nazev { height: 34px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--ink); font: inherit; font-weight: 700; padding: 0 10px; margin-bottom: 6px; }
@@ -559,6 +560,7 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
       <button id="zoomPlus" class="tl ikona" type="button" title="Přiblížit" aria-label="Přiblížit" data-ik="plus"></button>
     <button id="kameraCele" class="tl ikona" type="button" title="Celé hřiště (zrušit přiblížení)" aria-label="Celé hřiště"><svg class="ik fa" viewBox="0 0 448 512" aria-hidden="true"><path d="M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3 32-32V96h64c17.7 0 32-14.3 32-32s-14.3-32-32-32H32zM64 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v96c0 17.7 14.3 32 32 32h96c17.7 0 32-14.3 32-32s-14.3-32-32-32H64V352zM320 32c-17.7 0-32 14.3-32 32s14.3 32 32 32h64v64c0 17.7 14.3 32 32 32s32-14.3 32-32V64c0-17.7-14.3-32-32-32H320zM448 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v64H320c-17.7 0-32 14.3-32 32s14.3 32 32 32h96c17.7 0 32-14.3 32-32V352z"/></svg></button>
     </div>
+    <button id="kameraRuka" class="tl ikona" type="button" aria-pressed="false" title="Ruka – posun obrazu" aria-label="Ruka" data-ik="ruka"></button><!-- Kolo kstart (92A) -->
     <button type="button" class="tl ikona kam-zavrit" id="kameraZavrit" title="Skrýt ovládání kamery" aria-label="Skrýt ovládání kamery" data-ik="x"></button>
   </div>
 
@@ -1762,6 +1764,7 @@ function zvyrazniNastroj() {
   const ikVyb = ruka ? 'ruka' : viceRezim ? 'vice' : 'vyber';
   if ($('#vyberTl').dataset.stav !== ikVyb) { $('#vyberTl').dataset.stav = ikVyb; $('#vyberTl').innerHTML = ik(ikVyb); $('#vyberTl').setAttribute('aria-label', ruka ? 'Ruka' : viceRezim ? 'Výběr více' : 'Výběr'); }
   $('#vyberTl').setAttribute('aria-pressed', String(!nastroj));
+  $('#kameraRuka')?.setAttribute('aria-pressed', String(ruka)); // Kolo kstart (92A)
 
   $('#plocha').classList.toggle('mira', !!nastroj);
   $('#plocha').classList.toggle('ruka', ruka);
@@ -2850,6 +2853,8 @@ $('#vyberTl').addEventListener('click', () => {
   else ruka = false;
   zavriSkupinu(); zvyrazniNastroj();
 });
+// Kolo kstart (92A): Ruka v panelu kamery – zapne/vypne posun obrazu
+$('#kameraRuka').addEventListener('click', () => { ruka = !ruka; if (ruka) { nastroj = null; viceRezim = false; zavriSkupinu(); } zvyrazniNastroj(); });
 document.addEventListener('pointerdown', (e) => { if (skupina && !e.target.closest('#zasobnik') && !e.target.closest('.nt')) zavriSkupinu(); });
 // ------------------------------------------------------------ Kolo kexport: Uložit – video, obrázek, projekt, vybavení pro Trenéra
 const TR_MICE = { tenisak: 'Tenisák', minimic: 'Minimíč', overball: 'Overball', balonek: 'Nafukovací balonek', medik: 'Medik', gymball: 'Gymball' };
@@ -3172,6 +3177,8 @@ vykresliZasobnik(); zvyrazniNastroj();
 vykresli();
 zvyrazniNastroj();
 if (PREHRAVAC) nastavPrehravac();
+// Kolo kstart (90A): po spuštění prázdná plocha; poslední cvičení vrátí Vrátit v hlášce (nebo Zpět). Testy ho mohou zachovat (window.TABULKA_ZACHOVAT).
+if (!PREHRAVAC && !window.TABULKA_ZACHOVAT && (S.prvky.length || S.cary.length)) noveCviceni();
 if (PREHRAVAC && !PREHRAVAC.zaloha && new URLSearchParams(location.search).has('auto')) prehraj(); // Kolo kauto: ukázka v Trenérovi hraje sama
 if (chybaOdkazu) hlaska('Odkaz se nepodařilo otevřít');
 // Kolo kpwa (81A): instalace jako aplikace – manifest a service worker jen ve vlastním okně (ne v rámečku Trenéra ani v náhledu)
