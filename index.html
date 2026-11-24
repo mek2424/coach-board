@@ -3190,14 +3190,15 @@ async function sdiletProjekt() {
 // Kolo kdotrenera (125A, 126A): Trenér dostane odkaz a obrázky kroků v Plánu (stejná adresa webu → společné úložiště prohlížeče)
 const TRENER = 'https://mek2424.github.io/traner/index.html', KLIC_PRO_TRENERA = 'trenerova-tabulka:pro-trenera';
 const ANDROID = /Android/i.test(navigator.userAgent);
-async function nahledyKroku(max = 12) {
+async function nahledyKroku() {
   const c = S.cur, mod = S.pohled?.mod, w = 640, h = 360, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const ven = [];
   if (S.pohled) S.pohled.mod = 'plan';
   nastavKameru();
   try {
     await bezVyberu(async () => {
-      for (let i = 0; i < Math.min(S.kroky.length, max); i++) { S.cur = i; vykresli(); await vykresliSnimek(cv.getContext('2d'), w, h); ven.push(cv.toDataURL('image/jpeg', .8)); }
+      const n = S.kroky.length, kroky = n <= 3 ? [...Array(n).keys()] : [0, Math.floor((n - 1) / 2), n - 1]; // Kolo knahledy3: 3 návrhy
+      for (const i of kroky) { S.cur = i; vykresli(); await vykresliSnimek(cv.getContext('2d'), w, h); ven.push(cv.toDataURL('image/jpeg', .8)); }
     });
   } finally { S.cur = c; if (S.pohled) S.pohled.mod = mod; nastavKameru(); vykresli(); }
   return ven;
