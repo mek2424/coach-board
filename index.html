@@ -1690,7 +1690,7 @@ function stavAnimace(pl, tau) {
   const u = Math.min(1, tau / pl.dur), e0 = pl.i === 0 ? 0 : hladce(u), pos = {}, cary = {}, eHrace = {};
   for (const o of S.prvky) {
     const a = pl.start[o.id], b = pl.cil[o.id];
-    if (!a || !b) { if (a || b) pos[o.id] = { ...(b || a) }; continue; }
+    if (!a || !b) { if (b) pos[o.id] = { ...b }; continue; } // Kolo kodkroku: odebraný prvek zmizí na začátku kroku, nový se na začátku objeví
     const ca = pl.casy?.[o.id], e = ca ? hladce(Math.min(1, Math.max(0, (tau - ca.od) / Math.max(.01, ca.do - ca.od)))) : e0; // Kolo kobrana
     let x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
     const bc = pl.behy[o.id];
@@ -2057,7 +2057,7 @@ function vloz(typ, p) {
   if (typ === 'kruh') o.popis = dalsiCislo(t.barva);
   S.prvky.push(o);
   const q = sevri(p);
-  for (const k of S.kroky) k.pos[id] = { x: zaokr(q.x), y: zaokr(q.y), r: t.toc ? smerKSiti(q) : 0 };
+  for (const k of S.kroky.slice(S.cur)) k.pos[id] = { x: zaokr(q.x), y: zaokr(q.y), r: t.toc ? smerKSiti(q) : 0 }; // Kolo kodkroku: od tohoto kroku dál
   vyber = { druh: 'prvek', id };
   zmena();
 }
@@ -2591,7 +2591,7 @@ function vlozZeSchranky(posun) {
     if (n.typ === 'kruh') n.popis = dalsiCislo(n.barva || TYPY.kruh.barva);
     S.prvky.push(n);
     const m = sevri({ x: q.x + posun, y: q.y + posun });
-    for (const k of S.kroky) k.pos[id] = { ...q, x: zaokr(m.x), y: zaokr(m.y) };
+    for (const k of S.kroky.slice(S.cur)) k.pos[id] = { ...q, x: zaokr(m.x), y: zaokr(m.y) }; // Kolo kodkroku: od tohoto kroku dál
     nove.prvky.push(id);
   }
   for (const c of schranka.cary) {
@@ -2611,8 +2611,9 @@ function smaz() {
   const v = vybrane(); if (!v.prvky.length && !v.cary.length) return;
   zapamatuj();
   const zaloha = historie[historie.length - 1];
-  S.prvky = S.prvky.filter((x) => !v.prvky.includes(x.id));
-  for (const k of S.kroky) for (const id of v.prvky) delete k.pos[id];
+  // Kolo kodkroku (120A): prvek zmizí od tohoto kroku dál; když už není v žádném kroku, smaže se úplně
+  for (const k of S.kroky.slice(S.cur)) for (const id of v.prvky) delete k.pos[id];
+  S.prvky = S.prvky.filter((x) => !v.prvky.includes(x.id) || S.kroky.some((k) => k.pos[x.id]));
   S.cary = S.cary.filter((x) => !v.cary.includes(x.id));
   vyber = null; vice = null; zmena();
   const n = v.prvky.length + v.cary.length;
