@@ -1,4 +1,5 @@
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body><title>Trenérova tabulka zelená</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23339933'/%3E%3Cpath d='M150 104Q150 96 158 96H354Q362 96 362 104V232H150Z' fill='%23F4F5F2'/%3E%3Cpath d='M150 280H362V408Q362 416 354 416H158Q150 416 150 408Z' fill='%23F4F5F2'/%3E%3Cpath d='M118 256H394' stroke='%23fff' stroke-width='12' stroke-linecap='round'/%3E%3Cpath d='M206 360Q190 250 300 170' fill='none' stroke='%23E8622C' stroke-width='40' stroke-linecap='round'/%3E%3Cpath d='M332 146L276 152L310 200Z' fill='%23E8622C'/%3E%3C/svg%3E"><!-- Kolo kfigurky: favicon (75B) -->
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,700;1,400&display=swap">
@@ -1125,22 +1126,39 @@ function nastavKameru() {
   const cam = [tc0[0] + cil[0] + sv[0] * D * Math.cos(t), tc0[1] + cil[1] + sv[1] * D * Math.cos(t)];
   K = { proj, k, Hinv: inverze3(H), cam, H }; // Kolo kexport: H pro vykreslení podlahy do videa
 }
-// Stylizovaná postava: obrys, poloprůhledná výplň; souřadnice v metrech, počátek mezi chodidly, y nahoru záporné
+// Kolo kfigurky (77H): neutrální panáček – hlava, zaoblené tělo, končetiny stejné tloušťky, pokrčená kolena.
+// Obrys se kreslí kolem sjednocení dílů (maska: rozšířené díly bílé, díly černé), takže vznikne jedna souvislá linka; výplň je průsvitná.
+// Souřadnice v metrech, počátek mezi chodidly, y nahoru záporné.
+let FIGURKA_ID = 0;
+function dilyFigurky(druh, o) {
+  const D = [], l = (d, w) => D.push({ d, w });
+  if (druh !== 'figurina') { D.push({ c: [0, -1.62, .125] }); l('M0 -1.52 L0 -1.42', .07); }
+  l('M0 -1.33 L0 -1.0', .34); // tělo
+  const stoji = druh === 'trener' || druh === 'asist';
+  const roz = druh === 'nohy' ? Math.min(.45, (o.roz ?? .36) / 2) : .12;
+  const kol = stoji ? .11 : druh === 'nohy' ? roz * .6 + .06 : .17, kolY = stoji ? -.46 : -.44;
+  for (const s of [-1, 1]) l(`M${s * .08} -.88 L${s * kol} ${kolY} L${s * roz} -.05`, .1);
+  const r = { blok: [[-.2, -1.75], [-.2, -2.08], [.2, -1.75], [.2, -2.08]], utok: [[-.33, -1.56], [-.36, -1.74], [.24, -1.75], [.26, -2.08]],
+    figurina: [[-.3, -1.3], [-.36, -1.24], [.3, -1.3], [.36, -1.24]] }[druh] || [[-.26, -1.13], [-.29, -.9], [.26, -1.13], [.29, -.9]];
+  for (const [i, s] of [[0, -1], [2, 1]]) l(`M${s * .17} -1.36 L${r[i][0]} ${r[i][1]} L${r[i + 1][0]} ${r[i + 1][1]}`, .09);
+  return D;
+}
+function kresliDilyFigurky(D, navic, barva) {
+  return D.map((d) => d.c ? `<circle cx="${d.c[0]}" cy="${d.c[1]}" r="${d.c[2] + navic / 2}" fill="${barva}"/>`
+    : `<path d="${d.d}" stroke="${barva}" stroke-width="${(d.w + navic).toFixed(3)}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`).join('');
+}
 function kresliPostavu(druh, barva, o, smer) {
-  const tl = .085, ruce = { postava: 'M-.21 -1.38 L-.31 -.9 M.21 -1.38 L.31 -.9', nohy: 'M-.21 -1.38 L-.31 -.9 M.21 -1.38 L.31 -.9',
-    trener: 'M-.21 -1.38 L-.31 -.9 M.21 -1.38 L.31 -.9', asist: 'M-.21 -1.38 L-.31 -.9 M.21 -1.38 L.31 -.9', figurina: 'M-.21 -1.38 L-.36 -1.25 M.21 -1.38 L.36 -1.25',
-    blok: 'M-.2 -1.4 L-.2 -2.12 M.2 -1.4 L.2 -2.12', utok: 'M-.21 -1.38 L-.36 -1.62 M.2 -1.4 L.26 -2.12' }[druh] || 'M-.2 -1.4 L-.2 -2.12 M.2 -1.4 L.2 -2.12';
-  const roz = druh === 'nohy' ? Math.min(.45, (o.roz ?? .36) / 2) : .13;
-  const carky = druh === 'figurina' ? ' stroke-dasharray=".08 .05"' : '';
-  const telo = `<path d="M-.21 -1.43 Q0 -1.49 .21 -1.43 L.16 -.9 Q0 -.86 -.16 -.9 Z" fill="${barva}" fill-opacity=".38" stroke="${barva}" stroke-width=".04"${carky}/>`;
-  const hlava = druh === 'figurina' ? '' : `<circle cy="-1.62" r=".13" fill="${barva}" fill-opacity=".38" stroke="${barva}" stroke-width=".04"/>`;
-  const koncetiny = `<path d="${ruce} M-.1 -.9 L${-roz} 0 M.1 -.9 L${roz} 0" fill="none" stroke="${barva}" stroke-opacity=".8" stroke-width="${tl}" stroke-linecap="round" stroke-linejoin="round"${carky}/>`;
+  const D = dilyFigurky(druh, o), id = 'fig' + (++FIGURKA_ID), fig = druh === 'figurina', tl = .036;
+  // figurína: obrys přerušovaný (pruhy v masce), výplň slabší
+  const pruhy = fig ? `<pattern id="${id}p" patternUnits="userSpaceOnUse" width=".11" height=".11" patternTransform="rotate(45)"><rect width=".045" height=".11" fill="#000"/></pattern>` : '';
+  const maska = `<mask id="${id}" maskUnits="userSpaceOnUse" x="-1" y="-2.6" width="2" height="2.8">${kresliDilyFigurky(D, tl * 2, '#fff')}${kresliDilyFigurky(D, 0, '#000')}${fig ? `<rect x="-1" y="-2.6" width="2" height="2.8" fill="url(#${id}p)"/>` : ''}</mask>`;
+  const telo = `<g opacity="${fig ? .14 : .32}">${kresliDilyFigurky(D, 0, barva)}</g><rect class="obrys" x="-1" y="-2.6" width="2" height="2.8" fill="${barva}" mask="url(#${id})"/>`;
   const napis = druh === 'trener' ? 'T' : druh === 'asist' ? 'A' : (o.popis || '');
-  const cislo = napis ? `<text y="-1.13" fill="#fff" stroke="${barva}" stroke-width=".05" paint-order="stroke" font-family="DM Sans, sans-serif" font-weight="700" font-size="${napis.length > 2 ? .2 : .27}" text-anchor="middle" dominant-baseline="central">${esc(napis)}</text>` : '';
-  // Kolo 3: natočení – z boku je postava užší, tečka na hlavě ukazuje, kam se dívá (zezadu není vidět)
+  const cislo = napis ? `<text y="-1.18" fill="#fff" stroke="${barva}" stroke-width=".05" paint-order="stroke" font-family="DM Sans, sans-serif" font-weight="700" font-size="${napis.length > 2 ? .19 : .25}" text-anchor="middle" dominant-baseline="central">${esc(napis)}</text>` : '';
+  // natočení – z boku je postava užší, tečka na hlavě ukazuje, kam se dívá (zezadu není vidět)
   const w = smer ? smer.w : 1;
-  const oblicej = smer && smer.k > -.25 ? `<circle cx="${(smer.bok * .08).toFixed(3)}" cy="-1.63" r=".038" fill="#fff" stroke="${barva}" stroke-width=".02"/>` : '';
-  return `<g transform="scale(${w.toFixed(3)} 1)">${koncetiny + telo + hlava}</g>` + oblicej + (w > .55 ? cislo : '');
+  const oblicej = !fig && smer && smer.k > -.25 ? `<circle cx="${(smer.bok * .075).toFixed(3)}" cy="-1.63" r=".036" fill="#fff" stroke="${barva}" stroke-width=".02"/>` : '';
+  return `<defs>${pruhy}${maska}</defs><g transform="scale(${w.toFixed(3)} 1)">${telo}</g>` + oblicej + (w > .55 ? cislo : '');
 }
 function kresliStojici(o, t, barva, smer) {
   // Kolo 3: neviditelná plocha na chycení (mezi tenkýma nohama by se klik propadl na podlahu)
