@@ -199,7 +199,8 @@ body.prehravac .pilulka.vpravo.prazdna,
 body.prehravac .pilulka.vpravo > :not(#zpetDoEditoru) { display: none !important; }
 body.prehravac .pilulka.vpravo { top: 8px; right: 8px; left: auto; height: auto; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 17; }
 body.prehravac .pilulka.vpravo .tl { color: var(--ink-soft); background: none; }
-body.prehravac #plocha { top: 0; left: 0; width: 100%; height: 100%; contain: strict; } /* Kolo kblikani: překreslování jen uvnitř plochy */
+body.prehravac #plocha { top: 0; left: 0; width: 100%; height: 100%; contain: strict; }
+body.telefon #plocha { contain: strict; } /* Kolo kmobil3d: i v editoru na telefonu */ /* Kolo kblikani: překreslování jen uvnitř plochy */
 /* Kolo kobrana (68A): ovládání kamery i v přehrávači – vpravo nahoře, se schovaným ovládáním zmizí */
 body.prehravac .pilulka.kamera, body.prehravac .kamera-mini { top: 8px; z-index: 17; transition: opacity .3s; }
 .vid.skryto ~ .pilulka.kamera, .vid.skryto ~ .kamera-mini { opacity: 0; pointer-events: none; }
@@ -685,6 +686,8 @@ const CARA = 0.08;
 // Kolo iPad: ruka (posun obrazu ve 3D), výběr více klepáním, dotykové ovládání (větší úchyty)
 let ruka = false, viceRezim = false;
 const DOTEK = matchMedia('(pointer: coarse)').matches;
+const TELEFON = DOTEK && Math.min(screen.width, screen.height) < 600; // Kolo kmobil3d: telefon (ne tablet)
+document.body.classList.toggle('telefon', TELEFON);
 
 // Zóny z pohledu týmu, který kouká na síť (pravá ruka = zóna 1, 2).
 function zony(kurt) {
@@ -1244,7 +1247,7 @@ function nastavKameru() {
   surovy = kamera([tc0[0] + cil[0], tc0[1] + cil[1], 0]);
   const proj = (x, y, z = 0) => { const q = surovy(x, y, z); return [W / 2 + zoom * (ox + m * q[0] - W / 2), Hh / 2 + zoom * (oy + m * q[1] - Hh / 2), q[2]]; };
   // Kolo kblikani (104A): v přehrávači poloviční vrstva podlahy (méně grafické paměti na mobilu); editor a export 1600 × 900
-  const PW = PREHRAVAC ? 800 : 1600, PH = PW * 900 / 1600;
+  const PW = PREHRAVAC || TELEFON ? 800 : 1600, PH = PW * 900 / 1600; // Kolo kmobil3d: i editor na telefonu
   deska.style.width = PW + 'px'; deska.style.height = PH + 'px';
   const k = PW / vw;
   const src = [[0, 0], [PW, 0], [PW, PH], [0, PH]];
@@ -1254,7 +1257,7 @@ function nastavKameru() {
   deska.style.transform = `matrix3d(${H[0]},${H[3]},0,${H[6]},${H[1]},${H[4]},0,${H[7]},0,0,1,0,${H[2]},${H[5]},0,${H[8]})`;
   // poloha kamery na podlaze – podle ní se rozhoduje, co je před sítí a co za ní
   const cam = [tc0[0] + cil[0] + sv[0] * D * Math.cos(t), tc0[1] + cil[1] + sv[1] * D * Math.cos(t)];
-  K = { proj, k, Hinv: inverze3(H), cam, H }; // Kolo kexport: H pro vykreslení podlahy do videa
+  K = { proj, k, Hinv: inverze3(H), cam, H, PW, PH }; // Kolo kexport: H pro vykreslení podlahy do videa; Kolo kmobil3d: rozměr vrstvy
 }
 // Kolo kfigurky (77H): neutrální panáček – hlava, zaoblené tělo, končetiny stejné tloušťky, pokrčená kolena.
 // Obrys se kreslí kolem sjednocení dílů (maska: rozšířené díly bílé, díly černé), takže vznikne jedna souvislá linka; výplň je průsvitná.
@@ -3106,7 +3109,7 @@ async function vykresliSnimek(ctx, w, h) {
     gl.viewport(0, 0, W, Hh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, pod);
     // rohy desky → obrazovka; w z homografie dá perspektivně správné mapování textury
-    const rohy = [[0, 0], [1600, 0], [1600, 900], [0, 900]].map(([x, y]) => { const q = H[6] * x + H[7] * y + H[8], X = (H[0] * x + H[1] * y + H[2]) / q, Y = (H[3] * x + H[4] * y + H[5]) / q, a = Math.abs(q); return [(X / W * 2 - 1) * a, (1 - Y / Hh * 2) * a, 0, a]; });
+    const rohy = [[0, 0], [K.PW, 0], [K.PW, K.PH], [0, K.PH]].map(([x, y]) => { const q = H[6] * x + H[7] * y + H[8], X = (H[0] * x + H[1] * y + H[2]) / q, Y = (H[3] * x + H[4] * y + H[5]) / q, a = Math.abs(q); return [(X / W * 2 - 1) * a, (1 - Y / Hh * 2) * a, 0, a]; });
     const idx = [0, 1, 2, 0, 2, 3], uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
     gl.bindBuffer(gl.ARRAY_BUFFER, bp); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(idx.flatMap((i) => rohy[i])), gl.STREAM_DRAW);
     const ap = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 4, gl.FLOAT, false, 0, 0);
