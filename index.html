@@ -1490,11 +1490,15 @@ function planKroku(i, predchozi) {
   // Kolo kobrana: kdy se hráč v kroku pohybuje (s); jinak celý krok
   const casy = {};
   if (i > 0) for (const L of plan) {
-    if (L.c.typ !== 'uder' || !L.posledni) continue;
+    if (L.c.typ !== 'uder' || (!L.posledni && !L.c.cil)) continue; // Kolo kobrana2: útok na obránce i když za ním letí další šipka
     const tz = Math.min(1, L.do) * k.dur, hyb = (id) => start[id] && k.pos[id] && Math.hypot(start[id].x - k.pos[id].x, start[id].y - k.pos[id].y) > .05;
     if (L.c.cil && LIDE.includes(typ(L.c.cil))) {
       // 65A: obránce ubrání na místě, kde krok začínal, pak odchází (zbytek kroku, nebo pauza, když z kroku skoro nic nezbývá)
-      if (hyb(L.c.cil)) casy[L.c.cil] = { od: tz, do: k.dur - tz >= .4 || pauzaKroku(k) < .2 ? k.dur : k.dur + pauzaKroku(k) };
+      const id = L.c.cil, a = start[id], b = k.pos[id];
+      // Kolo kobrana2: konec u ducha → ubrání, pak odejde; konec u hráče na novém místě → doběhne s míčem
+      if (hyb(id) && !casy[id]) casy[id] = Math.hypot(L.c.x2 - a.x, L.c.y2 - a.y) <= Math.hypot(L.c.x2 - b.x, L.c.y2 - b.y)
+        ? { od: tz, do: k.dur - tz >= .4 || pauzaKroku(k) < .2 ? k.dur : k.dur + pauzaKroku(k), ubrani: true }
+        : { od: 0, do: tz };
     } else if (!L.c.cil) {
       // 66A: běh (nebo přesun) končící u konce útoku do prostoru – vyběhne hned a doběhne s míčem
       for (const o of S.prvky) {
@@ -1534,7 +1538,7 @@ function stavAnimace(pl, tau) {
     if (p <= 0) { cary[L.c.id] = 0; continue; }
     cary[L.c.id] = Math.min(1, p);
     if (p > 1 && !L.posledni) continue;
-    const sP = Math.min(1, p), c = L.c, cq = c.cil && pos[c.cil] ? pos[c.cil] : null;
+    const sP = Math.min(1, p), c = L.c, cq = c.cil && pl.casy?.[c.cil]?.ubrani && c.typ === 'uder' ? pl.start[c.cil] : c.cil && pos[c.cil] ? pos[c.cil] : null; // Kolo kobrana2: po ubránění míč zůstane na místě
     const cc = cq ? { ...c, x2: cq.x, y2: cq.y } : c; // konec u hráče, který se hýbe: míč doletí tam, kde hráč právě je
     const [x, y] = je3D() || c.typ === 'uder' || c.typ === 'odraz' ? [cc.x1 + (cc.x2 - cc.x1) * sP, cc.y1 + (cc.y2 - cc.y1) * sP] : podleDelky(krivka(cc))(sP);
     pos[L.mic] = { ...(pos[L.mic] || {}), x, y, z: L.z(sP), r: 0 };
@@ -1762,8 +1766,9 @@ function prichyt(p, cara = null) {
   let nej = null, d0 = .55;
   let nejId = null;
   // Kolo kobrana (65A): konec útoku se připíná k hráči tam, kde stál na začátku kroku (u ducha)
-  const kde = (id) => cara?.typ === 'uder' ? polohaZacatku(id) : polohy()[id];
-  for (const o of S.prvky) { const q = kde(o.id); if (!q) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
+  // Kolo kobrana2: u útoku jde konec k duchovi (ubrání, pak odejde) i k hráči na novém místě (doběhne s míčem)
+  const kde = (id) => cara?.typ === 'uder' ? [polohy()[id], polohaZacatku(id)] : [polohy()[id]];
+  for (const o of S.prvky) for (const q of kde(o.id)) { if (!q) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
   return nej ? { x: nej.x, y: nej.y, id: nejId } : p;
 }
 // Šipky připnuté k míči v aktuálním kroku jdou za ním (a míč za nimi)
@@ -1822,8 +1827,12 @@ function caryZaMicem(id) {
   for (const o of S.prvky) if (o.vDele === id) { const r = polohy()[o.id]; if (r) { r.x = q.x; r.y = q.y; } }
   for (const c of S.cary) if (c.krok === S.cur && (c.mic === id || c.od === id)) { c.x1 = q.x; c.y1 = q.y; }
   // Kolo 3: připnutý konec šipky jde za prvkem, u kterého končí
-  for (const c of S.cary) if (c.krok === S.cur && c.cil === id) { const z = c.typ === 'uder' ? polohaZacatku(id) : q; c.x2 = z.x; c.y2 = z.y; } // Kolo kobrana: útok končí u obránce na začátku kroku
-  if (S.kroky[S.cur + 1]) for (const c of S.cary) if (c.krok === S.cur + 1 && c.typ === 'uder' && c.cil === id) { c.x2 = q.x; c.y2 = q.y; }
+  // Kolo kobrana2: konec útoku u ducha (místo na začátku kroku) zůstane, jinak jde s hráčem
+  const uDucha = (c, z) => z && Math.hypot(c.x2 - z.x, c.y2 - z.y) < .05;
+  for (const c of S.cary) if (c.krok === S.cur && c.cil === id) { const z = c.typ === 'uder' && S.cur > 0 && uDucha(c, polohaZacatku(id)) ? polohaZacatku(id) : q; c.x2 = z.x; c.y2 = z.y; }
+  // v dalším kroku je tahle poloha začátkem: útok, který tam nekončí u hráče na novém místě, jde s ní
+  const dalsi = S.kroky[S.cur + 1];
+  if (dalsi) for (const c of S.cary) if (c.krok === S.cur + 1 && c.typ === 'uder' && c.cil === id && !uDucha(c, dalsi.pos[id])) { c.x2 = q.x; c.y2 = q.y; }
 }
 function micZaCarou(c) {
   const q = c.mic && c.krok === S.cur ? polohy()[c.mic] : null;
