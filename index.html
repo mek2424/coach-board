@@ -1,6 +1,22 @@
 <!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body><title>Trenérova tabulka zelená</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23339933'/%3E%3Cpath d='M150 104Q150 96 158 96H354Q362 96 362 104V232H150Z' fill='%23F4F5F2'/%3E%3Cpath d='M150 280H362V408Q362 416 354 416H158Q150 416 150 408Z' fill='%23F4F5F2'/%3E%3Cpath d='M118 256H394' stroke='%23fff' stroke-width='12' stroke-linecap='round'/%3E%3Cpath d='M206 360Q190 250 300 170' fill='none' stroke='%23E8622C' stroke-width='40' stroke-linecap='round'/%3E%3Cpath d='M332 146L276 152L310 200Z' fill='%23E8622C'/%3E%3C/svg%3E"><!-- Kolo kfigurky: favicon (75B) -->
 <meta name="claude:viewport-fit-sides" content="cover">
+<script>/* Kolo kprehravac (97A): odkaz pro Trenéra – načítací obrazovka hned, editor se neukáže */
+if (/^#t=/.test(location.hash)) {
+  document.documentElement.classList.add('nacitani');
+  var nacStyl = document.createElement('style');
+  nacStyl.textContent = 'html.nacitani,html.nacitani body{background:#3D6FA3;overflow:hidden}'
+    + '#nacitani{position:fixed;inset:0;z-index:9999;background:#3D6FA3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .25s}'
+    + '#nacitani svg{width:min(72px,24vmin);height:auto;border-radius:22%;box-shadow:0 6px 20px rgba(0,0,0,.25)}'
+    + '#nacitani i{width:26px;height:26px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:nacitaniKolo .8s linear infinite}'
+    + '#nacitani.pryc{opacity:0;pointer-events:none}@keyframes nacitaniKolo{to{transform:rotate(360deg)}}';
+  document.head.appendChild(nacStyl);
+  var nacEl = document.createElement('div'); nacEl.id = 'nacitani';
+  nacEl.innerHTML = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#339933"/><circle cx="92" cy="92" r="26" fill="#E8622C"/><path d="M150 104Q150 96 158 96H354Q362 96 362 104V232H150Z" fill="#F4F5F2"/><path d="M150 280H362V408Q362 416 354 416H158Q150 416 150 408Z" fill="#F4F5F2"/><path d="M118 256H394" stroke="#fff" stroke-opacity=".9" stroke-width="12" stroke-linecap="round"/><path d="M206 360Q190 250 300 170" fill="none" stroke="#E8622C" stroke-width="32" stroke-linecap="round"/><path d="M332 146L276 152L310 200Z" fill="#E8622C"/></svg><i></i>';
+  (document.body || document.documentElement).appendChild(nacEl);
+  setTimeout(function () { var e = document.getElementById('nacitani'); if (e) e.remove(); document.documentElement.classList.remove('nacitani'); }, 10000);
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,700;1,400&display=swap">
 <style>
@@ -208,6 +224,17 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
 #vidVypln::after { content: ""; position: absolute; right: -6px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 .vid-cas { flex: none; padding: 0 4px; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
 @media (pointer: coarse) { .vid-tl { height: 42px; min-width: 42px; } }
+/* Kolo kprehravac (96A): úzký rámeček – lišta se vejde (Přehrát, průběh, Opakovat, 3D a Celá obrazovka vždy) */
+@media (max-width: 480px) {
+  .vid-lista { gap: 1px; padding-left: max(4px, env(safe-area-inset-left, 0px)); padding-right: max(4px, env(safe-area-inset-right, 0px)); }
+  .vid-lista .vid-tl { height: 34px; min-width: 32px; padding: 0 4px; }
+  .vid-lista .vid-tl svg.ik.fa { width: 15px; height: 15px; }
+  #vidVychozi { display: none !important; }
+  .vid-cas { font-size: 11px; padding: 0 2px; }
+  .vid-osa { min-width: 36px; padding: 0 4px; }
+}
+@media (max-width: 360px) { .vid-cas { display: none; } }
+@media (max-height: 260px) { .vid-velke { width: 52px; height: 52px; margin: -26px 0 0 -26px; } .vid-velke svg.ik.fa { width: 22px; height: 22px; } }
 .uloz-odkaz { height: 30px; font-weight: 400; font-size: 12px; font-family: ui-monospace, monospace; }
 .oblast { position: absolute; z-index: 18; border: 1.5px solid var(--brand); background: rgba(31,95,191,.12); border-radius: 4px; pointer-events: none; }
 
@@ -1161,7 +1188,6 @@ function nastavKameru() {
 // Kolo kfigurky (77H): neutrální panáček – hlava, zaoblené tělo, končetiny stejné tloušťky, pokrčená kolena.
 // Obrys se kreslí kolem sjednocení dílů (maska: rozšířené díly bílé, díly černé), takže vznikne jedna souvislá linka; výplň je průsvitná.
 // Souřadnice v metrech, počátek mezi chodidly, y nahoru záporné.
-let FIGURKA_ID = 0;
 function dilyFigurky(druh, o) {
   const D = [], l = (d, w) => D.push({ d, w });
   if (druh !== 'figurina') { D.push({ c: [0, -1.62, .125] }); l('M0 -1.52 L0 -1.42', .07); }
@@ -1180,17 +1206,21 @@ function kresliDilyFigurky(D, navic, barva) {
     : `<path d="${d.d}" stroke="${barva}" stroke-width="${(d.w + navic).toFixed(3)}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`).join('');
 }
 function kresliPostavu(druh, barva, o, smer) {
-  const D = dilyFigurky(druh, o), id = 'fig' + (++FIGURKA_ID), fig = druh === 'figurina', tl = .036;
-  // figurína: obrys přerušovaný (pruhy v masce), výplň slabší
-  const pruhy = fig ? `<pattern id="${id}p" patternUnits="userSpaceOnUse" width=".11" height=".11" patternTransform="rotate(45)"><rect width=".045" height=".11" fill="#000"/></pattern>` : '';
-  const maska = `<mask id="${id}" maskUnits="userSpaceOnUse" x="-1" y="-2.6" width="2" height="2.8">${kresliDilyFigurky(D, tl * 2, '#fff')}${kresliDilyFigurky(D, 0, '#000')}${fig ? `<rect x="-1" y="-2.6" width="2" height="2.8" fill="url(#${id}p)"/>` : ''}</mask>`;
+  const D = dilyFigurky(druh, o), fig = druh === 'figurina', tl = .036;
+  // Kolo kprehravac: maska obrysu jednou pro každý tvar v #defs (nová maska v každém snímku Chrome občas nenašel → figurky blikaly)
+  const id = 'fm-' + druh + (druh === 'nohy' ? '-' + Math.round((o.roz ?? .36) * 100) : '');
+  if (!document.getElementById(id)) {
+    // figurína: obrys přerušovaný (pruhy v masce), výplň slabší
+    const pruhy = fig ? `<pattern id="${id}p" patternUnits="userSpaceOnUse" width=".11" height=".11" patternTransform="rotate(45)"><rect width=".045" height=".11" fill="#000"/></pattern>` : '';
+    $('#defs').insertAdjacentHTML('beforeend', `${pruhy}<mask id="${id}" maskUnits="userSpaceOnUse" x="-1" y="-2.6" width="2" height="2.8">${kresliDilyFigurky(D, tl * 2, '#fff')}${kresliDilyFigurky(D, 0, '#000')}${fig ? `<rect x="-1" y="-2.6" width="2" height="2.8" fill="url(#${id}p)"/>` : ''}</mask>`);
+  }
   const telo = `<g opacity="${fig ? .14 : .32}">${kresliDilyFigurky(D, 0, barva)}</g><rect class="obrys" x="-1" y="-2.6" width="2" height="2.8" fill="${barva}" mask="url(#${id})"/>`;
   const napis = druh === 'trener' ? 'T' : druh === 'asist' ? 'A' : (o.popis || '');
   const cislo = napis ? `<text y="-1.18" fill="#fff" stroke="${barva}" stroke-width=".05" paint-order="stroke" font-family="DM Sans, sans-serif" font-weight="700" font-size="${napis.length > 2 ? .19 : .25}" text-anchor="middle" dominant-baseline="central">${esc(napis)}</text>` : '';
   // natočení – z boku je postava užší, tečka na hlavě ukazuje, kam se dívá (zezadu není vidět)
   const w = smer ? smer.w : 1;
   const oblicej = !fig && smer && smer.k > -.25 ? `<circle cx="${(smer.bok * .075).toFixed(3)}" cy="-1.63" r=".036" fill="#fff" stroke="${barva}" stroke-width=".02"/>` : '';
-  return `<defs>${pruhy}${maska}</defs><g transform="scale(${w.toFixed(3)} 1)">${telo}</g>` + oblicej + (w > .55 ? cislo : '');
+  return `<g transform="scale(${w.toFixed(3)} 1)">${telo}</g>` + oblicej + (w > .55 ? cislo : '');
 }
 function kresliStojici(o, t, barva, smer) {
   // Kolo 3: neviditelná plocha na chycení (mezi tenkýma nohama by se klik propadl na podlahu)
@@ -3189,7 +3219,14 @@ zvyrazniNastroj();
 if (PREHRAVAC) nastavPrehravac();
 // Kolo kstart (90A): po spuštění prázdná plocha; poslední cvičení vrátí Vrátit v hlášce (nebo Zpět). Testy ho mohou zachovat (window.TABULKA_ZACHOVAT).
 if (!PREHRAVAC && !window.TABULKA_ZACHOVAT && (S.prvky.length || S.cary.length)) noveCviceni();
-if (PREHRAVAC && !PREHRAVAC.zaloha && new URLSearchParams(location.search).has('auto')) prehraj(); // Kolo kauto: ukázka v Trenérovi hraje sama
+// Kolo kprehravac (97A): načítací obrazovka zmizí po vykreslení (písma, první snímek); ?auto spustí přehrávání až potom
+async function hotovoNacitani() {
+  const el = document.getElementById('nacitani'); if (!el) return;
+  try { await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); } catch { /* nevadí */ }
+  vykresli(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  el.classList.add('pryc'); document.documentElement.classList.remove('nacitani'); setTimeout(() => el.remove(), 300);
+}
+hotovoNacitani().then(() => { if (PREHRAVAC && !PREHRAVAC.zaloha && new URLSearchParams(location.search).has('auto')) prehraj(); }); // Kolo kauto: ukázka v Trenérovi hraje sama
 if (chybaOdkazu) hlaska('Odkaz se nepodařilo otevřít');
 // Kolo kpwa (81A): instalace jako aplikace – manifest a service worker jen ve vlastním okně (ne v rámečku Trenéra ani v náhledu)
 const SAMOSTATNE = window.top === window && /^https?:$/.test(location.protocol);
