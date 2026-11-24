@@ -728,14 +728,27 @@ function kresliPrvek(o, p, vybrany, podlaha3d = false) {
   if (o.kuzel && t.kuzel) {
     const d = 3.2, uhel = 35 * Math.PI / 180;
     const gid = 'kz' + o.id;
+    if (podlaha3d) {
+      // Kolo kskokplan (88A): ve 3D bez přechodu – Chrome v rámečku (Trenér) přechod v otočené podlaze občas nevykreslí
+      let v = ''; for (let i = 6; i >= 1; i--) { const r = d * i / 6; v += `<path d="M0 0 L${r * Math.cos(uhel)} ${-r * Math.sin(uhel)} A${r} ${r} 0 0 1 ${r * Math.cos(uhel)} ${r * Math.sin(uhel)} Z"/>`; }
+      s += `<g class="kuzel3d" fill="${barva}" fill-opacity=".075" transform="rotate(${rot})" pointer-events="none">${v}</g>`;
+    } else {
     s += `<defs><radialGradient id="${gid}" cx="0" cy="0" r="${d}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${barva}" stop-opacity=".45"/><stop offset="1" stop-color="${barva}" stop-opacity="0"/></radialGradient></defs>`;
     s += `<path d="M0 0 L${d * Math.cos(uhel)} ${-d * Math.sin(uhel)} A${d} ${d} 0 0 1 ${d * Math.cos(uhel)} ${d * Math.sin(uhel)} Z" fill="url(#${gid})" transform="rotate(${rot})" pointer-events="none"/>`;
+    }
   }
   let tvar = t.bezOtoceniTvaru ? t.kresli(ob) : `<g transform="rotate(${rot})">${t.kresli(ob)}</g>`;
   if (o.typ === 'mic') {
     // Kolo 3: výška míče v plánu – čím výš, tím větší míč a dál od něj stín
     const z = p.z ?? VYSKY.mic, k = .85 + z * .1, d = z * .09;
     tvar = `<ellipse cx="${d}" cy="${d}" rx="${.2 * k}" ry="${.13 * k}" fill="#000" fill-opacity="${z < .3 ? .15 : .25}"/><g transform="scale(${k})">${tvar}</g>`;
+  }
+  // Kolo kskokplan (84A): výskok bloku v plánu – při přehrávání zvětšení se stínem (85C: v klidu bez značky)
+  // komentář v náhledu: útočník s útokem z výskoku se v plánu stejně pohoupne v okamžiku úderu (vrchol pohupnutí = úder)
+  const blokar = ['blok', 'blok2', 'blok3'].includes(t.stoji), utocnik = o.typ === 'utok';
+  if ((blokar || utocnik) && !podlaha3d) {
+    const r0 = t.nahled ? t.nahled / 2 : .5, v = anim ? ((utocnik ? anim.skokUtok : anim.skok)?.[o.id] || 0) / .55 : 0;
+    if (v > .01) { const d = v * .16; tvar = `<g class="skok-stin" transform="translate(${d.toFixed(3)} ${d.toFixed(3)}) rotate(${rot})"><ellipse rx="${(r0 * .9).toFixed(3)}" ry="${(Math.min(r0, .5) * .8).toFixed(3)}" fill="#000" fill-opacity="${(.22 * v).toFixed(3)}"/></g><g class="skok" transform="scale(${(1 + .2 * v).toFixed(3)})">${tvar}</g>`; }
   }
   if (!stopa) s += tvar; else if (hrac) s += `<g opacity=".3">${tvar}</g>`;
   if (o.typ === 'predmet' && !stopa) s += text(o.popis, popisBarva(barva), .26, .01);
@@ -1581,7 +1594,13 @@ function stavAnimace(pl, tau) {
     for (const L of utoky) vyskoc(o.id, L.od * pl.dur);
     if (sk === 'ano' && !utoky.length) vyskoc(o.id, Math.max(0, pl.dur - .6));
   }
-  return { pos, cary, virt, skok };
+  // Kolo kskokplan: útočník s útokem z výskoku – v plánu pohupnutí s vrcholem v okamžiku úderu (jen plán; ve 3D je ve vzduchu celý krok)
+  const skokUtok = {};
+  for (const o of S.prvky) {
+    if (o.typ !== 'utok' || !pos[o.id]?.vyskok) continue;
+    for (const L of pl.lety) if (L.c.typ === 'uder' && L.c.od === o.id) { const sd = (tau - (L.od * pl.dur - .3)) / .6; if (sd > 0 && sd < 1) skokUtok[o.id] = Math.max(skokUtok[o.id] || 0, .55 * 4 * sd * (1 - sd)); }
+  }
+  return { pos, cary, virt, skok, skokUtok };
 }
 // volný pád z výšky z0 na zem a dva odskoky (každý s 45 % rychlosti dopadu), pak míč leží
 function padZ(z0, zem, t) {
