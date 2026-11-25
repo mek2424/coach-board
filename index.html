@@ -978,7 +978,9 @@ async function nactiOdkaz(adresa) {
   return d;
 }
 let PREHRAVAC = null, chybaOdkazu = false, vidSkryt = null, vidStav = ''; // přehrávač: { pohled: autorův pohled (JSON), zaloha: editor, když se přehrávač zkouší z Uložit }
-if (/^#t=/.test(location.hash)) { try { S = await nactiOdkaz(location.hash); PREHRAVAC = { pohled: JSON.stringify(S.pohled || null), zaloha: null }; } catch { chybaOdkazu = true; } }
+let KOPIE = null; // Kolo kkopie: ?upravit=1#t=… z Trenéra → upravitelná kopie v editoru
+if (/^#t=/.test(location.hash) && new URLSearchParams(location.search).get('upravit') === '1') { try { KOPIE = await nactiOdkaz(location.hash); delete KOPIE.vybaveni; } catch { chybaOdkazu = true; } }
+else if (/^#t=/.test(location.hash)) { try { S = await nactiOdkaz(location.hash); PREHRAVAC = { pohled: JSON.stringify(S.pohled || null), zaloha: null }; } catch { chybaOdkazu = true; } }
 if (!S) try { const ul = JSON.parse(localStorage.getItem(KLIC) || 'null'); if (ul && ul.kroky) S = ul; } catch { /* nevadí */ }
 // Kolo kkrok: výskok útočníka a bloku dřív platil pro celého hráče → převod do kroků
 if (S) for (const o of S.prvky) {
@@ -3434,7 +3436,12 @@ vykresli();
 zvyrazniNastroj();
 if (PREHRAVAC) nastavPrehravac();
 // Kolo kstart (90A): po spuštění prázdná plocha; poslední cvičení vrátí Vrátit v hlášce (nebo Zpět). Testy ho mohou zachovat (window.TABULKA_ZACHOVAT).
-if (!PREHRAVAC && !window.TABULKA_ZACHOVAT && (S.prvky.length || S.cary.length)) noveCviceni();
+if (KOPIE) { // Kolo kkopie (138A): rozdělané cvičení do Předchozích, pak kopie z Trenéra
+  zapamatuj(); const zaloha = historie[historie.length - 1]; ulozNedavne(zaloha);
+  S = KOPIE; S.cur = 0; vyber = null; vice = null; nastavKameru(); zmena();
+  try { history.replaceState(null, '', location.pathname); } catch { /* nevadí */ }
+  hlaska('Kopie z Trenéra', () => { S = JSON.parse(zaloha); historie.pop(); nastavKameru(); zmena(); });
+} else if (!PREHRAVAC && !window.TABULKA_ZACHOVAT && (S.prvky.length || S.cary.length)) noveCviceni();
 // Kolo kprehravac (97A): načítací obrazovka zmizí po vykreslení (písma, první snímek); ?auto spustí přehrávání až potom
 async function hotovoNacitani() {
   const el = document.getElementById('nacitani'); if (!el) return;
