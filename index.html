@@ -893,11 +893,11 @@ function kresliCaru(c, vybrana, duch, podlaha3d = false) {
   if (podlaha3d && (c.typ === 'oblouk' || c.typ === 'odraz' || (c.typ === 'uder' && (c.mic || utokOdHrace(c))))) {
     // Kolo 3: ve 3D letí oblouk vzduchem (vrstva postav); na podlaze zůstane rovný stín a plocha na chycení
     const zv = vybrana ? `<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#FFC72C" stroke-opacity=".5" stroke-width=".25" stroke-linecap="round"/>` : '';
-    return `<g class="cara" data-id="${c.id}" ${duch ? 'opacity=".28" pointer-events="none"' : 'style="cursor:pointer"'}>${zv}<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#000" stroke-opacity=".25" stroke-width=".06" stroke-dasharray=".15 .15"/><path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="transparent" stroke-width=".7"/>${c.mic && S.prvky.some((o) => o.id === c.mic) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : ''}</g>`;
+    return `<g class="cara" data-id="${c.id}" ${duch ? 'opacity=".28" pointer-events="none"' : 'style="cursor:pointer"'}>${zv}<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#000" stroke-opacity=".25" stroke-width=".06" stroke-dasharray=".15 .15"/><path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="transparent" stroke-width=".7"/>${c.mic && !cisty() && S.prvky.some((o) => o.id === c.mic) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : ''}</g>`;
   }
   const pomlcky = POMLCKY[c.styl || VYCHOZI_STYL[c.typ]];
-  const pripnuto = (c.mic || c.od) && S.prvky.some((o) => o.id === (c.mic || c.od)) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : '';
-  const pripnutoKonec = c.cil && S.prvky.some((o) => o.id === c.cil) ? `<circle cx="${c.x2}" cy="${c.y2}" r=".42" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : '';
+  const pripnuto = (c.mic || c.od) && !cisty() && S.prvky.some((o) => o.id === (c.mic || c.od)) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : '';
+  const pripnutoKonec = c.cil && !cisty() && S.prvky.some((o) => o.id === c.cil) ? `<circle cx="${c.x2}" cy="${c.y2}" r=".42" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : '';
   const hrot = c.konec !== 'bez';
   const k = kontrolniBod(c);
   const uhelKonce = Math.atan2(c.y2 - k.cy, c.x2 - k.cx);
@@ -1066,9 +1066,10 @@ function vykresliZony() {
   $('#vrstvaZon').innerHTML = s;
 }
 let bezDuchu = false; // Kolo kbezduchu: při vykreslení obrázku bez duchů
+const cisty = () => bezDuchu || !!PREHRAVAC; // Kolo kcisty: video, obrázky a přehrávač bez duchů a koleček připnutí
 function vykresliDuchy() {
   let s = '';
-  if (S.cur > 0 && !anim && !bezDuchu) {
+  if (S.cur > 0 && !anim && !cisty()) { /* Kolo kcisty */
     const pred = S.kroky[S.cur - 1].pos, ted = polohy();
     for (const o of S.prvky) {
       const a = pred[o.id], b = ted[o.id];
@@ -1119,10 +1120,10 @@ function vykresliPlochu() {
   vykresliDuchy();
   let c = '';
   if (anim) {
-    if (!bezDuchu) for (const x of S.cary) if (x.krok === S.cur - 1) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu
+    if (!cisty()) for (const x of S.cary) if (x.krok === S.cur - 1) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu, kcisty
     for (const x of S.cary) if (x.krok === S.cur) { const p = anim.cary[x.id] ?? 1; if (p > 0) c += odhal(kresliCaru(x, false, false, je3D()), x, p); }
   } else {
-    if (!bezDuchu) for (const x of S.cary) if (x.krok !== S.cur) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu
+    if (!cisty()) for (const x of S.cary) if (x.krok !== S.cur) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu, kcisty
     for (const x of S.cary) if (x.krok === S.cur) c += kresliCaru(x, jeVybrano('cara', x.id), false, je3D());
   }
   $('#vrstvaCar').innerHTML = c;
