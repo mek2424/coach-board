@@ -187,8 +187,9 @@ body.prehravac .pilulka.kamera .kam-zavrit { position: absolute; right: 0; top: 
 .uloz-radek span { display: flex; flex-direction: column; font-weight: 600; }
 .uloz-radek small { font-weight: 400; font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .uloz-radek.nedavne { min-height: 34px; padding-left: 38px; } /* Kolo knedavna */
-.uloz-radek.pod { min-height: 34px; padding-left: 38px; } /* Kolo kmenu: položky rozbalené skupiny */
-.uloz-radek.pod.nedavne { padding-left: 54px; }
+.uloz-radek.pod { min-height: 34px; padding-left: 28px; } /* Kolo kmenu: položky rozbalené skupiny (kmenu2: s ikonou) */
+.uloz-radek.pod > svg:not(.sipecka) { width: 15px; height: 15px; }
+.uloz-radek.pod.nedavne { padding-left: 53px; }
 .uloz-radek .sipecka { margin-left: auto; width: 12px; height: 12px; color: var(--ink-faint); transform: rotate(-90deg); transition: transform .15s; }
 .uloz-radek[aria-expanded="true"] .sipecka { transform: none; }
 .uloz-radek[aria-expanded="true"] { background: var(--paper); }
@@ -635,8 +636,8 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
     <button id="zpet" class="tl ikona" type="button" title="Zpět (Ctrl+Z)" aria-label="Zpět"><svg class="ik fa" viewBox="0 0 512 512" aria-hidden="true"><path d="M125.7 160H176c17.7 0 32 14.3 32 32s-14.3 32-32 32H48c-17.7 0-32-14.3-32-32V64c0-17.7 14.3-32 32-32s32 14.3 32 32v51.2L97.6 97.6c87.5-87.5 229.3-87.5 316.8 0s87.5 229.3 0 316.8s-229.3 87.5-316.8 0c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0c62.5 62.5 163.8 62.5 226.3 0s62.5-163.8 0-226.3s-163.8-62.5-226.3 0L125.7 160z"/></svg></button>
     <button id="vpred" class="tl ikona" type="button" title="Znovu (Ctrl+Y)" aria-label="Znovu"><svg class="ik fa" viewBox="0 0 512 512" aria-hidden="true"><path d="M386.3 160H336c-17.7 0-32 14.3-32 32s14.3 32 32 32H464c17.7 0 32-14.3 32-32V64c0-17.7-14.3-32-32-32s-32 14.3-32 32v51.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0s-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3s163.8-62.5 226.3 0L386.3 160z"/></svg></button>
     <button id="instalovatTl" class="tl ikona" type="button" hidden title="Nainstalovat aplikaci" aria-label="Nainstalovat aplikaci" data-ik="instalovat"></button><!-- Kolo kpwa -->
-    <button id="ulozitTl" class="tl hlavni" type="button" title="Uložit – video, obrázek, projekt" aria-pressed="false">
-      <svg class="ik fa" viewBox="0 0 512 512" aria-hidden="true"><path d="M288 32c0-17.7-14.3-32-32-32s-32 14.3-32 32V274.7l-73.4-73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l128 128c12.5 12.5 32.8 12.5 45.3 0l128-128c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L288 274.7V32zM64 352c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V416c0-35.3-28.7-64-64-64H346.5l-45.3 45.3c-25 25-65.5 25-90.5 0L165.5 352H64zm368 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg><span>Uložit</span>
+    <button id="ulozitTl" class="tl hlavni" type="button" title="Menu" aria-label="Menu" aria-pressed="false">
+      <svg class="ik fa" viewBox="0 0 448 512" aria-hidden="true"><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg>
     </button>
   </div>
 
@@ -3240,7 +3241,7 @@ async function doTrenera(okno) {
 }
 // okno Uložit
 let ulozOkno = null, nedavnaOtevrena = false; // Kolo knedavna
-const rozbalUloz = { obrazek: !!window.TABULKA_ROZBALENO, projekt: !!window.TABULKA_ROZBALENO, rucne: !!window.TABULKA_ROZBALENO }; // Kolo kmenu: sbalené skupiny okna Uložit
+const rozbalUloz = { obrazek: !!window.TABULKA_ROZBALENO, projekt: !!window.TABULKA_ROZBALENO }; // Kolo kmenu: sbalené skupiny okna Uložit
 function zavriUlozOkno() { if (nahravani) return; ulozOkno?.remove(); ulozOkno = null; $('#ulozitTl').setAttribute('aria-pressed', 'false'); }
 function otevriUlozOkno() {
   if (ulozOkno) { zavriUlozOkno(); return; }
@@ -3255,30 +3256,29 @@ function otevriUlozOkno() {
 }
 function obnovUlozOkno() {
   if (!ulozOkno) return;
-  // Kolo kmenu: skupiny Obrázek, Projekt a Ručně se rozbalují; štítek vybavení a Vyzkoušet přehrávač pryč
+  // Kolo kmenu2: varianta A – Stáhnout video, Stáhnout obrázek kroku ▸, Projekt ▸, Poslat do Trenéra, Kopírovat odkaz pro Trenéra
   const radek = (a, ikona, nazev, pozn, tr = '') => `<button type="button" class="uloz-radek${tr}" data-uloz="${a}">${ikona}<span>${nazev}${pozn ? `<small>${pozn}</small>` : ''}</span></button>`;
   const sipka = ik('dolu').replace('class="ik fa"', 'class="ik fa sipecka"');
   const skupina = (k, ikona, nazev, pozn = '', a = 'sk-' + k, ot = rozbalUloz[k], tr = '') => radek(a, ikona, nazev, pozn, tr).replace('class="uloz-radek', `aria-expanded="${ot}" class="uloz-radek`).replace('</button>', sipka + '</button>');
-  const pod = (a, nazev, pozn) => radek(a, '', nazev, pozn, ' pod');
+  const pod = (a, ikona, nazev, pozn) => radek(a, ik(ikona), nazev, pozn, ' pod');
   const n = nedavna();
   const kdy = (t) => { const d = new Date(t), dnes = new Date(); const hm = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
     return d.toDateString() === dnes.toDateString() ? 'dnes ' + hm : d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }) + ' ' + hm; };
   ulozOkno.innerHTML = `<input id="ulozNazev" class="uloz-nazev" value="${esc(S.nazev ?? '')}" placeholder="Název cvičení" aria-label="Název cvičení" spellcheck="false">` +
-    radek('video', ik('video'), 'Video', nahravani ? '' : `${je3D() ? '3D' : 'plán'} · 1280 × 720`) +
-    skupina('obrazek', ik('obrazek'), 'Obrázek') +
-    (rozbalUloz.obrazek ? pod('obr640', 'Malý', '640 × 360') + pod('obr1600', 'Velký', '1600 × 900') : '') +
+    radek('video', ik('video'), 'Stáhnout video', nahravani ? '' : `celé cvičení · ${je3D() ? '3D' : 'plán'}`) +
+    skupina('obrazek', ik('obrazek'), 'Stáhnout obrázek kroku', `krok ${S.cur + 1} z ${S.kroky.length}`) +
+    (rozbalUloz.obrazek ? pod('obr640', 'obrazek', 'Malý', '640 × 360') + pod('obr1600', 'obrazek', 'Velký', '1600 × 900') : '') +
     '<span class="del-h"></span>' +
     skupina('projekt', ik('projekt'), 'Projekt') +
-    (rozbalUloz.projekt ? pod('projekt', 'Uložit do souboru', '') +
-      (lzeSdiletSoubor() ? pod('sdiletProjekt', 'Sdílet soubor', 'Disk, e-mail…') : '') + // Kolo kdotrenera (124A)
-      pod('otevrit', 'Otevřít soubor', '') +
-      (n.length ? skupina('nedavna', '', 'Nedávná', `${n.length} cvičení`, 'nedavna', nedavnaOtevrena, ' pod') + // Kolo knedavna
+    (rozbalUloz.projekt ? pod('projekt', 'projekt', 'Stáhnout cvičení', 'soubor, jde znovu otevřít') +
+      (lzeSdiletSoubor() ? pod('sdiletProjekt', 'sdilet', 'Poslat cvičení', 'Disk, e-mail…') : '') + // Kolo kdotrenera (124A)
+      pod('otevrit', 'otevrit', 'Otevřít cvičení', '') +
+      (n.length ? skupina('nedavna', ik('nedavna'), 'Předchozí cvičení', `${n.length} v tomto zařízení`, 'nedavna', nedavnaOtevrena, ' pod') + // Kolo knedavna
         (nedavnaOtevrena ? n.map((z, i) => { let nz = ''; try { nz = JSON.parse(z.s).nazev || ''; } catch { /* nevadí */ }
           return `<button type="button" class="uloz-radek pod nedavne" data-uloz="nedavne" data-i="${i}"><span>${esc(nz || 'Bez názvu')}<small>${kdy(z.cas)}</small></span></button>`; }).join('') : '') : '') : '') +
     '<span class="del-h"></span>' +
-    radek('doTrenera', ik('doTrenera'), 'Do Trenéra', 'odkaz a náhledy z kroků') + // Kolo kdotrenera (125A)
-    skupina('rucne', ik('ruka'), 'Ručně') +
-    (rozbalUloz.rucne ? pod('kopirovat', 'Kopírovat název a vybavení', '') + pod('odkaz', 'Kopírovat odkaz', je3D() ? '3D' : 'plán') + pod('obrKrok1', 'Obrázek 1. kroku', '640 × 360') : '') +
+    radek('doTrenera', ik('doTrenera'), 'Poslat do Trenéra', 'odkaz a náhledy z kroků') + // Kolo kdotrenera (125A)
+    radek('odkaz', ik('odkaz'), 'Kopírovat odkaz pro Trenéra', 'když Poslat nejde') +
     '<input type="file" id="projektSoubor" accept=".json,.txt,application/json,text/plain" hidden>';
   const tv = ulozOkno.querySelector('[data-uloz="video"]');
   if (nahravani) { tv.classList.add('nahrava'); tv.querySelector('span').innerHTML = 'Nahrávám…<small>0,0 s</small>'; }
@@ -3298,7 +3298,6 @@ $('#jeviste').addEventListener('click', async (e) => {
   else if (a === 'doTrenera') { const okno = ANDROID || !SAMOSTATNE ? null : window.open('', '_blank'); doTrenera(okno); } // okno hned po klepnutí, jinak ho prohlížeč zablokuje
   else if (a === 'otevrit') ulozOkno.querySelector('#projektSoubor').click();
   else if (a === 'odkaz') kopirujOdkaz(b);
-  else if (a === 'obrKrok1') obrazekKroku1();
   else if (a === 'nedavna') { nedavnaOtevrena = !nedavnaOtevrena; obnovUlozOkno(); } // Kolo knedavna
   else if (a.startsWith('sk-')) { const k = a.slice(3); rozbalUloz[k] = !rozbalUloz[k]; obnovUlozOkno(); } // Kolo kmenu
   else if (a === 'nedavne') {
@@ -3308,12 +3307,9 @@ $('#jeviste').addEventListener('click', async (e) => {
     vyber = null; vice = null; zavriPlovak(); zavriUlozOkno(); zmena();
     hlaska('Otevřeno', () => { S = JSON.parse(zaloha); historie.pop(); zmena(); });
   }
-  else if (a === 'kopirovat') {
-    const v = vybaveni(), t = `${nazevCviceni()}\nVybavení: ${v.length ? v.join(', ') : 'Bez vybavení'}`;
-    try { await navigator.clipboard.writeText(t); hlaska('Zkopírováno pro Trenéra'); } catch { hlaska('Kopírování se nepovedlo'); }
-  }
+
 });
-$('#ulozitTl').disabled = false; $('#ulozitTl').title = 'Uložit – video, obrázek, projekt';
+$('#ulozitTl').disabled = false; $('#ulozitTl').title = 'Menu'; // Kolo kmenu2: ☰
 $('#ulozitTl').addEventListener('click', otevriUlozOkno);
 window.addEventListener('resize', () => zavriUlozOkno());
 document.addEventListener('pointerdown', (e) => { if (ulozOkno && !e.target.closest('#ulozOkno') && !e.target.closest('#ulozitTl')) zavriUlozOkno(); });
@@ -3333,12 +3329,6 @@ async function kopirujOdkaz(tl) {
     if (!i && ulozOkno) { i = document.createElement('input'); i.id = 'odkazText'; i.className = 'uloz-nazev uloz-odkaz'; i.readOnly = true; i.addEventListener('keydown', (e) => e.stopPropagation()); tl.after(i); }
     if (i) { i.value = u; i.focus(); i.select(); }
   }
-}
-async function obrazekKroku1() {
-  zastav(); const c = S.cur;
-  if (c !== 0) { S.cur = 0; zmena(); }
-  await ulozObrazek(640);
-  if (c !== 0) { S.cur = c; zmena(); }
 }
 function nastavPrehravac() {
   document.body.classList.toggle('prehravac', !!PREHRAVAC);
