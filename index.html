@@ -187,6 +187,10 @@ body.prehravac .pilulka.kamera .kam-zavrit { position: absolute; right: 0; top: 
 .uloz-radek span { display: flex; flex-direction: column; font-weight: 600; }
 .uloz-radek small { font-weight: 400; font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .uloz-radek.nedavne { min-height: 34px; padding-left: 38px; } /* Kolo knedavna */
+.uloz-radek.pod { min-height: 34px; padding-left: 38px; } /* Kolo kmenu: položky rozbalené skupiny */
+.uloz-radek.pod.nedavne { padding-left: 54px; }
+.uloz-radek .sipecka { margin-left: auto; width: 12px; height: 12px; color: var(--ink-faint); transform: rotate(-90deg); transition: transform .15s; }
+.uloz-radek[aria-expanded="true"] .sipecka { transform: none; }
 .uloz-radek[aria-expanded="true"] { background: var(--paper); }
 .uloz-radek.nahrava svg { color: var(--danger); animation: magnetPulz 1s ease-in-out infinite; }
 .del-h { height: 1px; background: var(--line); margin: 4px 6px; }
@@ -3236,6 +3240,7 @@ async function doTrenera(okno) {
 }
 // okno Uložit
 let ulozOkno = null, nedavnaOtevrena = false; // Kolo knedavna
+const rozbalUloz = { obrazek: !!window.TABULKA_ROZBALENO, projekt: !!window.TABULKA_ROZBALENO, rucne: !!window.TABULKA_ROZBALENO }; // Kolo kmenu: sbalené skupiny okna Uložit
 function zavriUlozOkno() { if (nahravani) return; ulozOkno?.remove(); ulozOkno = null; $('#ulozitTl').setAttribute('aria-pressed', 'false'); }
 function otevriUlozOkno() {
   if (ulozOkno) { zavriUlozOkno(); return; }
@@ -3246,33 +3251,34 @@ function otevriUlozOkno() {
   const b = $('#ulozitTl').getBoundingClientRect(), j = $('#jeviste').getBoundingClientRect();
   ulozOkno.style.top = (b.bottom - j.top + 10) + 'px';
   ulozOkno.style.left = Math.max(8, Math.min(j.width - ulozOkno.offsetWidth - 8, b.right - j.left - ulozOkno.offsetWidth)) + 'px';
+  ulozOkno.style.maxHeight = Math.max(160, j.height - (b.bottom - j.top + 10) - 8) + 'px'; ulozOkno.style.overflowY = 'auto'; // Kolo kmenu: rozbalené skupiny se vejdou, okno se posouvá
 }
 function obnovUlozOkno() {
   if (!ulozOkno) return;
-  const v = vybaveni(), radek = (a, ikona, nazev, pozn) => `<button type="button" class="uloz-radek" data-uloz="${a}">${ikona}<span>${nazev}${pozn ? `<small>${pozn}</small>` : ''}</span></button>`;
+  // Kolo kmenu: skupiny Obrázek, Projekt a Ručně se rozbalují; štítek vybavení a Vyzkoušet přehrávač pryč
+  const radek = (a, ikona, nazev, pozn, tr = '') => `<button type="button" class="uloz-radek${tr}" data-uloz="${a}">${ikona}<span>${nazev}${pozn ? `<small>${pozn}</small>` : ''}</span></button>`;
+  const sipka = ik('dolu').replace('class="ik fa"', 'class="ik fa sipecka"');
+  const skupina = (k, ikona, nazev, pozn = '', a = 'sk-' + k, ot = rozbalUloz[k], tr = '') => radek(a, ikona, nazev, pozn, tr).replace('class="uloz-radek', `aria-expanded="${ot}" class="uloz-radek`).replace('</button>', sipka + '</button>');
+  const pod = (a, nazev, pozn) => radek(a, '', nazev, pozn, ' pod');
+  const n = nedavna();
+  const kdy = (t) => { const d = new Date(t), dnes = new Date(); const hm = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === dnes.toDateString() ? 'dnes ' + hm : d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }) + ' ' + hm; };
   ulozOkno.innerHTML = `<input id="ulozNazev" class="uloz-nazev" value="${esc(S.nazev ?? '')}" placeholder="Název cvičení" aria-label="Název cvičení" spellcheck="false">` +
     radek('video', ik('video'), 'Video', nahravani ? '' : `${je3D() ? '3D' : 'plán'} · 1280 × 720`) +
-    radek('obr640', ik('obrazek'), 'Obrázek', '640 × 360') +
-    radek('obr1600', ik('obrazek'), 'Obrázek', '1600 × 900') +
+    skupina('obrazek', ik('obrazek'), 'Obrázek') +
+    (rozbalUloz.obrazek ? pod('obr640', 'Malý', '640 × 360') + pod('obr1600', 'Velký', '1600 × 900') : '') +
     '<span class="del-h"></span>' +
-    radek('projekt', ik('projekt'), 'Projekt', 'jde znovu otevřít') +
-    (lzeSdiletSoubor() ? radek('sdiletProjekt', ik('sdilet'), 'Sdílet projekt', 'Disk, e-mail…') : '') + // Kolo kdotrenera (124A)
-    radek('otevrit', ik('otevrit'), 'Otevřít projekt', '') +
-    (() => { // Kolo knedavna: rozbalovací Nedávná
-      const n = nedavna(); if (!n.length) return '';
-      const kdy = (t) => { const d = new Date(t), dnes = new Date(); const hm = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-        return d.toDateString() === dnes.toDateString() ? 'dnes ' + hm : d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' }) + ' ' + hm; };
-      return radek('nedavna', ik('nedavna'), 'Nedávná', `${n.length} cvičení`).replace('class="uloz-radek"', `class="uloz-radek" aria-expanded="${nedavnaOtevrena}"`) +
+    skupina('projekt', ik('projekt'), 'Projekt') +
+    (rozbalUloz.projekt ? pod('projekt', 'Uložit do souboru', '') +
+      (lzeSdiletSoubor() ? pod('sdiletProjekt', 'Sdílet soubor', 'Disk, e-mail…') : '') + // Kolo kdotrenera (124A)
+      pod('otevrit', 'Otevřít soubor', '') +
+      (n.length ? skupina('nedavna', '', 'Nedávná', `${n.length} cvičení`, 'nedavna', nedavnaOtevrena, ' pod') + // Kolo knedavna
         (nedavnaOtevrena ? n.map((z, i) => { let nz = ''; try { nz = JSON.parse(z.s).nazev || ''; } catch { /* nevadí */ }
-          return `<button type="button" class="uloz-radek nedavne" data-uloz="nedavne" data-i="${i}"><span>${esc(nz || 'Bez názvu')}<small>${kdy(z.cas)}</small></span></button>`; }).join('') : '');
-    })() +
+          return `<button type="button" class="uloz-radek pod nedavne" data-uloz="nedavne" data-i="${i}"><span>${esc(nz || 'Bez názvu')}<small>${kdy(z.cas)}</small></span></button>`; }).join('') : '') : '') : '') +
     '<span class="del-h"></span>' +
-    `<div class="uloz-vyb">${ik('pomucky')}<span>${v.length ? v.map((n) => `<i>${esc(n)}</i>`).join('') : '<i class="nic">Bez vybavení</i>'}</span></div>` +
     radek('doTrenera', ik('doTrenera'), 'Do Trenéra', 'odkaz a náhledy z kroků') + // Kolo kdotrenera (125A)
-    radek('kopirovat', ik('kopie'), 'Kopírovat pro Trenéra', 'název a vybavení') +
-    radek('odkaz', ik('odkaz'), 'Odkaz pro Trenéra', je3D() ? '3D' : 'plán') +
-    radek('obrKrok1', ik('obrazek'), 'Obrázek 1. kroku', '640 × 360') +
-    radek('prehravac', ik('prehravac'), 'Vyzkoušet přehrávač', '') +
+    skupina('rucne', ik('ruka'), 'Ručně') +
+    (rozbalUloz.rucne ? pod('kopirovat', 'Kopírovat název a vybavení', '') + pod('odkaz', 'Kopírovat odkaz', je3D() ? '3D' : 'plán') + pod('obrKrok1', 'Obrázek 1. kroku', '640 × 360') : '') +
     '<input type="file" id="projektSoubor" accept=".json,.txt,application/json,text/plain" hidden>';
   const tv = ulozOkno.querySelector('[data-uloz="video"]');
   if (nahravani) { tv.classList.add('nahrava'); tv.querySelector('span').innerHTML = 'Nahrávám…<small>0,0 s</small>'; }
@@ -3294,6 +3300,7 @@ $('#jeviste').addEventListener('click', async (e) => {
   else if (a === 'odkaz') kopirujOdkaz(b);
   else if (a === 'obrKrok1') obrazekKroku1();
   else if (a === 'nedavna') { nedavnaOtevrena = !nedavnaOtevrena; obnovUlozOkno(); } // Kolo knedavna
+  else if (a.startsWith('sk-')) { const k = a.slice(3); rozbalUloz[k] = !rozbalUloz[k]; obnovUlozOkno(); } // Kolo kmenu
   else if (a === 'nedavne') {
     const z = nedavna()[+b.dataset.i]; if (!z) return;
     zastav(); zapamatuj(); const zaloha = historie[historie.length - 1];
@@ -3301,7 +3308,6 @@ $('#jeviste').addEventListener('click', async (e) => {
     vyber = null; vice = null; zavriPlovak(); zavriUlozOkno(); zmena();
     hlaska('Otevřeno', () => { S = JSON.parse(zaloha); historie.pop(); zmena(); });
   }
-  else if (a === 'prehravac') zkusPrehravac();
   else if (a === 'kopirovat') {
     const v = vybaveni(), t = `${nazevCviceni()}\nVybavení: ${v.length ? v.join(', ') : 'Bez vybavení'}`;
     try { await navigator.clipboard.writeText(t); hlaska('Zkopírováno pro Trenéra'); } catch { hlaska('Kopírování se nepovedlo'); }
