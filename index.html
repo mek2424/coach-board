@@ -1951,7 +1951,7 @@ function prichyt(p, cara = null) {
   // Kolo kobrana (65A): konec útoku se připíná k hráči tam, kde stál na začátku kroku (u ducha)
   // Kolo kobrana2: u útoku jde konec k duchovi (ubrání, pak odejde) i k hráči na novém místě (doběhne s míčem)
   const kde = (id) => cara?.typ === 'uder' ? [polohy()[id], polohaZacatku(id)] : [polohy()[id]];
-  for (const o of S.prvky) for (const q of kde(o.id)) { if (!q) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
+  for (const o of S.prvky) for (const q of kde(o.id)) { if (!q || (cara?.typ === 'beh' && cara.od === o.id)) continue; /* Kolo kbeh */ const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < d0) { d0 = d; nej = q; nejId = o.id; } }
   return nej ? { x: nej.x, y: nej.y, id: nejId } : p;
 }
 // Šipky připnuté k míči v aktuálním kroku jdou za ním (a míč za nimi)
@@ -2005,10 +2005,13 @@ function deloPobliz(q) {
   for (const o of S.prvky) { if (o.typ !== 'delo') continue; const d = polohy()[o.id]; if (d && Math.hypot(d.x - q.x, d.y - q.y) < .7) return { id: o.id, x: d.x, y: d.y }; }
   return null;
 }
+// Kolo kbeh: šipka Běh od hráče (od 2. kroku) – její konec je poloha hráče v kroku
+function jeBehHrace(c, id, k = S.cur) { return c.typ === 'beh' && k > 0 && c.krok === k && !!c.od && c.od === id && !c.mic && S.prvky.some((o) => o.id === id && LIDE.includes(o.typ)); }
+function hracNaKonecBehu(c) { if (!jeBehHrace(c, c.od)) return; const q = polohy()[c.od]; if (!q) return; q.x = c.x2; q.y = c.y2; caryZaMicem(c.od); }
 function caryZaMicem(id) {
   const q = polohy()[id]; if (!q) return;
   for (const o of S.prvky) if (o.vDele === id) { const r = polohy()[o.id]; if (r) { r.x = q.x; r.y = q.y; } }
-  for (const c of S.cary) if (c.krok === S.cur && (c.mic === id || c.od === id)) { c.x1 = q.x; c.y1 = q.y; }
+  for (const c of S.cary) if (c.krok === S.cur && (c.mic === id || c.od === id)) { if (jeBehHrace(c, id)) { c.x2 = q.x; c.y2 = q.y; } else { c.x1 = q.x; c.y1 = q.y; } } // Kolo kbeh
   // Kolo 3: připnutý konec šipky jde za prvkem, u kterého končí
   // Kolo kobrana2: konec útoku u ducha (místo na začátku kroku) zůstane, jinak jde s hráčem
   const uDucha = (c, z) => z && Math.hypot(c.x2 - z.x, c.y2 - z.y) < .05;
@@ -2016,13 +2019,14 @@ function caryZaMicem(id) {
   // v dalším kroku je tahle poloha začátkem: útok, který tam nekončí u hráče na novém místě, jde s ní
   const dalsi = S.kroky[S.cur + 1];
   if (dalsi) for (const c of S.cary) if (c.krok === S.cur + 1 && c.typ === 'uder' && c.cil === id && !uDucha(c, dalsi.pos[id])) { c.x2 = q.x; c.y2 = q.y; }
+  if (dalsi) for (const c of S.cary) if (jeBehHrace(c, id, S.cur + 1) && dalsi.pos[id]) { c.x1 = q.x; c.y1 = q.y; } // Kolo kbeh: běh v dalším kroku začíná tady
 }
 function micZaCarou(c) {
   const q = c.mic && c.krok === S.cur ? polohy()[c.mic] : null;
   // Kolo 3: se zdrojem (míč, dělo) jdou i lidé vsazení v děle a další šipky z něj
   if (q) { q.x = c.x1; q.y = c.y1; caryZaMicem(c.mic); }
   const qo = c.od && c.krok === S.cur ? polohy()[c.od] : null;
-  if (qo) { qo.x = c.x1; qo.y = c.y1; caryZaMicem(c.od); }
+  if (qo) { const b = jeBehHrace(c, c.od); qo.x = b ? c.x2 : c.x1; qo.y = b ? c.y2 : c.y1; caryZaMicem(c.od); } // Kolo kbeh: u běhu jde hráč na konec
   const qc = c.cil && c.krok === S.cur && !(c.typ === 'uder' && S.cur > 0) ? polohy()[c.cil] : null; // Kolo kobrana: útok obránce nepřesouvá (končí u ducha)
   if (qc) { qc.x = c.x2; qc.y = c.y2; caryZaMicem(c.cil); }
 }
@@ -2267,6 +2271,7 @@ plocha.addEventListener('pointermove', (ev) => {
   } else if (tah.druh === 'nova-cara') {
     const x = S.cary.find((k) => k.id === tah.id); x.x2 = zaokr(p.x); x.y2 = zaokr(p.y);
     if (Math.hypot(x.x2 - x.x1, x.y2 - x.y1) > 1) tah.daleko = true; // Kolo knadhoz
+    if (Math.hypot(x.x2 - x.x1, x.y2 - x.y1) >= .4) hracNaKonecBehu(x); // Kolo kbeh
     magnet = cilPrichyceni(p, x);
     x.ohyb = CARY[x.typ].ohyb * Math.min(1, Math.hypot(x.x2 - x.x1, x.y2 - x.y1) / 5);
   } else if (tah.druh === 'uchyt') {
@@ -2302,7 +2307,7 @@ plocha.addEventListener('pointermove', (ev) => {
       const x = S.cary.find((k) => k.id === vyber.id);
       if (tah.role === 'a' || tah.role === 'b') magnet = cilPrichyceni(p, tah.role === 'b' ? x : null);
       if (tah.role === 'a') { x.x1 = zaokr(p.x); x.y1 = zaokr(p.y); }
-      else if (tah.role === 'b') { x.x2 = zaokr(p.x); x.y2 = zaokr(p.y); deloZaSipkou(x); }
+      else if (tah.role === 'b') { x.x2 = zaokr(p.x); x.y2 = zaokr(p.y); deloZaSipkou(x); hracNaKonecBehu(x); } // Kolo kbeh
       else {
         const dx = x.x2 - x.x1, dy = x.y2 - x.y1, L = Math.hypot(dx, dy) || 1;
         x.ohyb = zaokr(((p.x - (x.x1 + x.x2) / 2) * -dy + (p.y - (x.y1 + x.y2) / 2) * dx) / L);
@@ -2332,7 +2337,8 @@ function konecTahu(ev) {
     const x = S.cary.find((k) => k.id === tah.id);
     const b = prichyt({ x: x.x2, y: x.y2 }, x); x.x2 = zaokr(b.x); x.y2 = zaokr(b.y);
     if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil;
-    if (!urciNadhoz(x, b, tah.daleko) && Math.hypot(x.x2 - x.x1, x.y2 - x.y1) < .4) { S.cary = S.cary.filter((k) => k.id !== x.id); historie.pop(); vyber = null; }
+    if (!urciNadhoz(x, b, tah.daleko) && Math.hypot(x.x2 - x.x1, x.y2 - x.y1) < .4) { S.cary = S.cary.filter((k) => k.id !== x.id); if (jeBehHrace(x, x.od)) { const h = JSON.parse(historie[historie.length - 1]); S.kroky = h.kroky; S.cary = S.cary.filter((k) => k.id !== x.id); } historie.pop(); vyber = null; } // Kolo kbeh: krátká šipka – hráč zpět
+    else if (jeBehHrace(x, x.od)) { hracNaKonecBehu(x); propisPomucky([x.od]); } // Kolo kbeh
     nastroj = null; zvyrazniNastroj();
     tah = null; zmena(); return;
   }
@@ -2340,7 +2346,9 @@ function konecTahu(ev) {
     const x = S.cary.find((k) => k.id === vyber.id);
     const b = prichyt(tah.role === 'a' ? { x: x.x1, y: x.y1 } : { x: x.x2, y: x.y2 }, tah.role === 'b' ? x : null);
     if (tah.role === 'a') { x.x1 = zaokr(b.x); x.y1 = zaokr(b.y); if (b.mic && x.typ !== 'beh') x.mic = b.mic; else delete x.mic; if (!x.mic && b.id && x.typ !== 'lajna') x.od = b.id; else delete x.od; } else { x.x2 = zaokr(b.x); x.y2 = zaokr(b.y); if (b.id && b.id !== x.mic) x.cil = b.id; else delete x.cil; urciNadhoz(x, b, true); }
+    if (tah.role === 'b' && tah.zmeneno && jeBehHrace(x, x.od)) { hracNaKonecBehu(x); propisPomucky([x.od]); } // Kolo kbeh
   }
+  if (tah.druh === 'cara' && tah.zmeneno) { const x = S.cary.find((k) => k.id === tah.id); if (x && jeBehHrace(x, x.od)) propisPomucky([x.od]); } // Kolo kbeh
   if (tah.druh === 'prvek' && S.prvky.find((o) => o.id === tah.id)?.typ === 'mic') pripniMic(tah.id);
   if (tah.druh === 'prvek') {
     const o = S.prvky.find((x) => x.id === tah.id), q = polohy()[tah.id];
