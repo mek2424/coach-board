@@ -1,5 +1,5 @@
 // Kolo kpwa: service worker Trenérovy tabulky. Při každém kole s novými soubory zvýšit verzi cache.
-const CACHE = 'tabulka-v45';
+const CACHE = 'tabulka-v46'; // Kolo kkopie2: manifest (handle_links)
 const ZAKLAD = ['./', 'js/kvet.js', 'js/barvy.js', 'js/fa-ikony.json', 'js/vendor/blossom-color-picker.js', 'manifest.webmanifest',
   'ikony/ikona-192.png', 'ikony/ikona-512.png', 'ikony/ikona-512-maskable.png', 'ikony/apple-touch-icon.png'];
 self.addEventListener('install', (e) => {

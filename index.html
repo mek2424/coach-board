@@ -3436,12 +3436,27 @@ vykresli();
 zvyrazniNastroj();
 if (PREHRAVAC) nastavPrehravac();
 // Kolo kstart (90A): po spuštění prázdná plocha; poslední cvičení vrátí Vrátit v hlášce (nebo Zpět). Testy ho mohou zachovat (window.TABULKA_ZACHOVAT).
-if (KOPIE) { // Kolo kkopie (138A): rozdělané cvičení do Předchozích, pak kopie z Trenéra
-  zapamatuj(); const zaloha = historie[historie.length - 1]; ulozNedavne(zaloha);
-  S = KOPIE; S.cur = 0; vyber = null; vice = null; nastavKameru(); zmena();
-  try { history.replaceState(null, '', location.pathname); } catch { /* nevadí */ }
+// Kolo kkopie (138A): rozdělané cvičení do Předchozích, pak kopie z Trenéra
+function otevriKopii(d) {
+  zastav(); zapamatuj(); const zaloha = historie[historie.length - 1]; ulozNedavne(zaloha);
+  S = d; S.cur = 0; vyber = null; vice = null; zavriUlozOkno(); zavriPlovak(); nastavKameru(); zmena();
   hlaska('Kopie z Trenéra', () => { S = JSON.parse(zaloha); historie.pop(); nastavKameru(); zmena(); });
+}
+// Kolo kkopie2 (164A): kopie předaná přes společné úložiště (Trenér na Androidu) – převezme ji Tabulka při spuštění nebo přepnutí
+const KLIC_KOPIE = 'trenerova-tabulka:kopie';
+async function prevezmiKopii() {
+  if (PREHRAVAC) return;
+  let z = null;
+  try { z = JSON.parse(localStorage.getItem(KLIC_KOPIE) || 'null'); if (z) localStorage.removeItem(KLIC_KOPIE); } catch { return; }
+  if (!z?.url || !(Date.now() - z.cas < 15 * 60 * 1000)) return;
+  try { const d = await nactiOdkaz(z.url); delete d.vybaveni; otevriKopii(d); } catch { hlaska('Odkaz se nepodařilo otevřít'); }
+}
+if (KOPIE) {
+  otevriKopii(KOPIE);
+  try { history.replaceState(null, '', location.pathname); } catch { /* nevadí */ }
 } else if (!PREHRAVAC && !window.TABULKA_ZACHOVAT && (S.prvky.length || S.cary.length)) noveCviceni();
+if (!KOPIE) prevezmiKopii();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') prevezmiKopii(); });
 // Kolo kprehravac (97A): načítací obrazovka zmizí po vykreslení (písma, první snímek); ?auto spustí přehrávání až potom
 async function hotovoNacitani() {
   const el = document.getElementById('nacitani'); if (!el) return;
