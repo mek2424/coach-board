@@ -155,7 +155,8 @@ svg.ik.fa { fill: currentColor; stroke: none; width: 16px; height: 16px; }
 .post-sit { display: flex; flex-wrap: wrap; gap: 4px; }
 .post-sit button { height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink-soft); cursor: pointer; font-size: 13px; }
 .post-sit button[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dark); font-weight: 700; }
-.post-strana { align-self: flex-start; }
+.post-strana, .post-zdroj { align-self: flex-start; }
+.post-volby { display: flex; flex-wrap: wrap; gap: 8px; } /* Kolo kprevzit: strana a Nové | Převzít v jednom řádku */
 .post-rot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .post-rot .rot { border: 1px solid transparent; border-radius: 7px; background: var(--paper); cursor: pointer; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--ink-soft); }
 .post-rot .rot:hover { border-color: var(--brand); }
@@ -1849,15 +1850,67 @@ function naHriste(strana, [sirka, hloubka]) {
   if (strana === 'P') return { x: 9 + hloubka, y: 9 - sirka, r: 180 };
   return { x: 9 - hloubka, y: sirka, r: 0 };
 }
+// Kolo kprevzit (173A–175A): převzít 6 hráček z předchozího kroku; role si figurka pamatuje (o.role), jinak podle zón
+const HRACKY = ['kruh', 'blok', 'utok', 'nohy'];
+let postPrevzit = true;
+function zHriste(strana, p) { /* opak naHriste: [šířka, hloubka] */
+  if (strana === 'H') return [p.x, p.y];
+  if (strana === 'P') return [9 - p.y, p.x - 9];
+  return [p.y, 9 - p.x];
+}
+const zdrojPostaveni = () => S.kroky[Math.max(0, S.cur - 1)].pos;
+function hrackyKPrevzeti(strana) {
+  const src = zdrojPostaveni();
+  const v = S.prvky.filter((o) => { if (!HRACKY.includes(o.typ) || !src[o.id]) return false; const [a, h] = zHriste(strana, src[o.id]); return a > -2.5 && a < 11.5 && h > -.3 && h < 11.5; });
+  return v.length === 6 ? v : null;
+}
+const ZONY_STRED = { 1: [7.5, 7.5], 2: [7.5, 1.5], 3: [4.5, 1.5], 4: [1.5, 1.5], 5: [1.5, 7.5], 6: [4.5, 7.5] };
+function zonyRoli(z) { /* role → zóna v rotaci z (nahrávač v zóně z) */
+  const poradi = ['B2', 'N', 'S1', 'B1', 'U', 'S2'], r = {};
+  for (let j = 1; j <= 6; j++) r[poradi[((j - z + 1) % 6 + 6) % 6]] = j;
+  return r;
+}
+function nejlepsiPrirazeni(a, b, cena) { /* a[i] → b[vysledek[i]], nejmenší součet cen */
+  let best = a.map((_, i) => i), bc = Infinity; const pouzito = [], vyb = [];
+  const rek = (i, c) => {
+    if (c >= bc) return;
+    if (i === a.length) { bc = c; best = vyb.slice(); return; }
+    for (let j = 0; j < b.length; j++) if (!pouzito[j]) { pouzito[j] = 1; vyb.push(j); rek(i + 1, c + cena(a[i], b[j])); vyb.pop(); pouzito[j] = 0; }
+  };
+  rek(0, 0); return best;
+}
+function prevzetiPostaveni(sit, z, strana, hracky) {
+  const hr = sestavPostaveni(sit, z), src = zdrojPostaveni(), zona = zonyRoli(z);
+  const kde = (o) => zHriste(strana, src[o.id]), d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const role = new Map(), vzato = new Set();
+  for (const o of hracky) if (o.role && (o.role in zona || o.role === 'L') && !vzato.has(o.role)) { role.set(o, o.role); vzato.add(o.role); }
+  const bez = hracky.filter((o) => !role.has(o)), zbyle = Object.keys(zona).filter((r) => !vzato.has(r));
+  const p1 = nejlepsiPrirazeni(bez, zbyle, (o, r) => d(kde(o), ZONY_STRED[zona[r]]));
+  bez.forEach((o, i) => role.set(o, zbyle[p1[i]]));
+  const misto = new Map(), obsaz = new Set(), maL = [...role.values()].includes('L');
+  for (const o of hracky) { const r = role.get(o); if (r in hr && !obsaz.has(r)) { misto.set(o, r); obsaz.add(r); } }
+  for (const o of hracky) if (!misto.has(o) && role.get(o)[0] === 'B' && 'L' in hr && !maL && !obsaz.has('L')) { misto.set(o, 'L'); obsaz.add('L'); } /* 175A: místo libera blokařka vzadu */
+  const zb = hracky.filter((o) => !misto.has(o)), volna = Object.keys(hr).filter((r) => !obsaz.has(r));
+  const p2 = nejlepsiPrirazeni(zb, volna, (o, r) => d(kde(o), hr[r]));
+  zb.forEach((o, i) => misto.set(o, volna[p2[i]]));
+  return { role, misto, hr };
+}
 function vlozPostaveni(sit, z) {
   zapamatuj();
   const strana = S.kurt === 'pul' ? 'H' : postStrana, hr = sestavPostaveni(sit, z), k = krok();
+  const hracky = postPrevzit ? hrackyKPrevzeti(strana) : null; // Kolo kprevzit
+  if (hracky) {
+    const pv = prevzetiPostaveni(sit, z, strana, hracky);
+    for (const o of hracky) { o.role = pv.role.get(o); const p = naHriste(strana, pv.hr[pv.misto.get(o)]); k.pos[o.id] = { ...(k.pos[o.id] || {}), x: p.x, y: p.y, r: p.r }; }
+    propisPomucky(hracky.map((o) => o.id));
+    vyber = null; vice = null; zavriSkupinu(); zmena(); return;
+  }
   const tymu = S.prvky.filter((o) => o.tym === strana && LIDE.includes(o.typ));
   for (const [stitek, q] of Object.entries(hr)) {
     const p = naHriste(strana, q);
     let o = tymu.find((x) => x.popis === stitek);
     if (!o) {
-      o = { id: noveId(), typ: 'kruh', popis: stitek, barva: BARVY_ROLI[stitek[0]], tym: strana };
+      o = { id: noveId(), typ: 'kruh', popis: stitek, barva: BARVY_ROLI[stitek[0]], tym: strana, role: stitek }; // Kolo kprevzit: role
       S.prvky.push(o);
       for (let j = S.cur; j < S.kroky.length; j++) S.kroky[j].pos[o.id] = { x: p.x, y: p.y, r: p.r };
     } else k.pos[o.id] = { ...(k.pos[o.id] || {}), x: p.x, y: p.y, r: p.r };
@@ -1867,16 +1920,25 @@ function vlozPostaveni(sit, z) {
   vyber = null; vice = null; zavriSkupinu(); zmena();
 }
 // miniatura rotace na dlaždici: hřiště 9×9, síť nahoře
-function miniPostaveni(sit, z) {
+function miniPostaveni(sit, z, strana, hracky) {
   const hr = sestavPostaveni(sit, z);
+  if (hracky) { /* Kolo kprevzit: náhled s převzatými hráčkami */
+    const pv = prevzetiPostaveni(sit, z, strana, hracky);
+    return `<svg viewBox="-.6 -.9 10.2 10.5" aria-hidden="true"><rect x="0" y="0" width="9" height="9" fill="${BARVA.dvorec}"/><path d="M0 3H9" stroke="#fff" stroke-width=".12"/><path d="M-.5 0H9.5" stroke="${BARVA.sit}" stroke-width=".3"/>` +
+      hracky.map((o) => { const [x, y] = pv.hr[pv.misto.get(o)], b = o.barva || TYPY[o.typ].barva; return `<circle cx="${x}" cy="${y}" r=".75" fill="${b}" stroke="#fff" stroke-width=".12"/><text x="${x}" y="${y + .32}" text-anchor="middle" font-size=".9" font-weight="700" fill="${popisBarva(b)}">${o.popis || ''}</text>`; }).join('') + '</svg>';
+  }
   return `<svg viewBox="-.6 -.9 10.2 10.5" aria-hidden="true"><rect x="0" y="0" width="9" height="9" fill="${BARVA.dvorec}"/><path d="M0 3H9" stroke="#fff" stroke-width=".12"/><path d="M-.5 0H9.5" stroke="${BARVA.sit}" stroke-width=".3"/>` +
     Object.entries(hr).map(([k, [x, y]]) => `<circle cx="${x}" cy="${y}" r=".75" fill="${BARVY_ROLI[k[0]]}" stroke="#fff" stroke-width=".12"/><text x="${x}" y="${y + .32}" text-anchor="middle" font-size=".9" font-weight="700" fill="${popisBarva(BARVY_ROLI[k[0]])}">${k}</text>`).join('') + '</svg>';
 }
 function panelPostaveni() {
   const chip = (a, v, n, zv) => `<button type="button" data-${a}="${v}" aria-pressed="${zv}">${n}</button>`;
   let h = `<div class="post-sit">${SITUACE.map(([k, n]) => chip('post-sit', k, n, postSit === k)).join('')}</div>`;
-  if (S.kurt === 'cele') h += `<div class="seg post-strana">${chip('post-strana', 'L', 'Levá strana', postStrana === 'L')}${chip('post-strana', 'P', 'Pravá strana', postStrana === 'P')}</div>`;
-  h += `<div class="post-rot">${[1, 2, 3, 4, 5, 6].map((z) => `<button type="button" class="rot" data-post-rot="${z}" title="Nahrávač v zóně ${z}" aria-label="Nahrávač v zóně ${z}">${miniPostaveni(postSit, z)}<b>N v zóně ${z}</b></button>`).join('')}</div>`;
+  const strana = S.kurt === 'pul' ? 'H' : postStrana, hracky = hrackyKPrevzeti(strana); // Kolo kprevzit
+  let volby = S.kurt === 'cele' ? `<div class="seg post-strana">${chip('post-strana', 'L', 'Levá strana', postStrana === 'L')}${chip('post-strana', 'P', 'Pravá strana', postStrana === 'P')}</div>` : '';
+  if (hracky) volby += `<div class="seg post-zdroj">${chip('post-prevzit', '0', 'Nové', !postPrevzit)}${chip('post-prevzit', '1', 'Převzít', postPrevzit)}</div>`;
+  if (volby) h += `<div class="post-volby">${volby}</div>`;
+  const nahled = postPrevzit ? hracky : null;
+  h += `<div class="post-rot">${[1, 2, 3, 4, 5, 6].map((z) => `<button type="button" class="rot" data-post-rot="${z}" title="Nahrávač v zóně ${z}" aria-label="Nahrávač v zóně ${z}">${miniPostaveni(postSit, z, strana, nahled)}<b>N v zóně ${z}</b></button>`).join('')}</div>`;
   return h;
 }
 function vykresliZasobnik() {
@@ -3045,6 +3107,7 @@ $('#zasobnik').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || skupina !== 'postaveni') return;
   if (b.dataset.postSit) { postSit = b.dataset.postSit; vykresliZasobnik(); }
   else if (b.dataset.postStrana) { postStrana = b.dataset.postStrana; vykresliZasobnik(); }
+  else if (b.dataset.postPrevzit) { postPrevzit = b.dataset.postPrevzit === '1'; vykresliZasobnik(); } // Kolo kprevzit
   else if (b.dataset.postRot) vlozPostaveni(postSit, +b.dataset.postRot);
 });
 document.querySelectorAll('.nt[data-sk]').forEach((b) => b.addEventListener('click', () => {
