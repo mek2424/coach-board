@@ -894,7 +894,7 @@ function kresliCaru(c, vybrana, duch, podlaha3d = false) {
   if (podlaha3d && (c.typ === 'oblouk' || c.typ === 'odraz' || (c.typ === 'uder' && (c.mic || utokOdHrace(c))))) {
     // Kolo 3: ve 3D letí oblouk vzduchem (vrstva postav); na podlaze zůstane rovný stín a plocha na chycení
     const zv = vybrana ? `<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#FFC72C" stroke-opacity=".5" stroke-width=".25" stroke-linecap="round"/>` : '';
-    return `<g class="cara" data-id="${c.id}" ${duch ? 'opacity=".28" pointer-events="none"' : 'style="cursor:pointer"'}>${zv}<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#000" stroke-opacity=".25" stroke-width=".06" stroke-dasharray=".15 .15"/><path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="transparent" stroke-width=".7"/>${c.mic && !cisty() && S.prvky.some((o) => o.id === c.mic) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : ''}</g>`;
+    return `<g class="cara" data-id="${c.id}" ${duch ? `opacity="${duch === true ? SLABNUTI[0] : duch}" pointer-events="none"` : 'style="cursor:pointer"'}>${zv}<path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="#000" stroke-opacity=".25" stroke-width=".06" stroke-dasharray=".15 .15"/><path d="M${c.x1} ${c.y1}L${c.x2} ${c.y2}" stroke="transparent" stroke-width=".7"/>${c.mic && !cisty() && S.prvky.some((o) => o.id === c.mic) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : ''}</g>`;
   }
   const pomlcky = POMLCKY[c.styl || VYCHOZI_STYL[c.typ]];
   const pripnuto = (c.mic || c.od) && !cisty() && S.prvky.some((o) => o.id === (c.mic || c.od)) ? `<circle cx="${c.x1}" cy="${c.y1}" r=".36" fill="none" stroke="${barva}" stroke-width=".045" stroke-dasharray=".09 .07" pointer-events="none"/>` : '';
@@ -929,7 +929,7 @@ function kresliCaru(c, vybrana, duch, podlaha3d = false) {
   const dz = jeNadhoz(c) ? smyckaNadhozu(c) : `M${c.x1} ${c.y1} Q${k.cx} ${k.cy} ${c.x2} ${c.y2}`; // Kolo knadhoz
   const zachyt = `<path d="${dz}" fill="none" stroke="transparent" stroke-width=".7"/>`;
   const zvyr = vybrana ? `<path d="${dz}" fill="none" stroke="#FFC72C" stroke-opacity=".55" stroke-width=".3" stroke-linecap="round" pointer-events="none"/>` : '';
-  return `<g class="cara" data-id="${c.id}" ${duch ? 'opacity=".28" pointer-events="none"' : 'style="cursor:pointer"'}>${zvyr}${zachyt}${s}${pripnuto}${pripnutoKonec}</g>`;
+  return `<g class="cara" data-id="${c.id}" ${duch ? `opacity="${duch === true ? SLABNUTI[0] : duch}" pointer-events="none"` : 'style="cursor:pointer"'}>${zvyr}${zachyt}${s}${pripnuto}${pripnutoKonec}</g>`;
 }
 
 // ------------------------------------------------------------ stav
@@ -1068,15 +1068,21 @@ function vykresliZony() {
 }
 let bezDuchu = false; // Kolo kbezduchu: při vykreslení obrázku bez duchů
 const cisty = () => bezDuchu || !!PREHRAVAC; // Kolo kcisty: video, obrázky a přehrávač bez duchů a koleček připnutí
+// Kolo kslabnuti: duchové slábnou podle stáří – předchozí krok, o 2 a o 3 kroky zpět; starší a budoucí nic
+const SLABNUTI = [.25, .12, .06]; /* 185B, 186C */
+const slabnuti = (krok) => SLABNUTI[S.cur - krok - 1] || 0;
 function vykresliDuchy() {
   let s = '';
   if (S.cur > 0 && !anim && !cisty()) { /* Kolo kcisty */
-    const pred = S.kroky[S.cur - 1].pos, ted = polohy();
-    for (const o of S.prvky) {
-      const a = pred[o.id], b = ted[o.id];
-      if (!a || !b || (Math.abs(a.x - b.x) < .01 && Math.abs(a.y - b.y) < .01)) continue;
-      s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#fff" stroke-opacity=".6" stroke-width=".05" stroke-dasharray=".06 .12" stroke-linecap="round"/>`;
-      s += `<g opacity=".3">${kresliPrvek(o, a, false).replace('class="prvek"', 'class="duch-prvek" pointer-events="none"')}</g>`;
+    const ted = polohy(); /* Kolo kslabnuti: stopa ze 3 předchozích kroků, nejstarší vespod */
+    for (let d = Math.min(SLABNUTI.length, S.cur); d >= 1; d--) {
+      const pred = S.kroky[S.cur - d].pos, dal = d === 1 ? ted : S.kroky[S.cur - d + 1].pos, op = SLABNUTI[d - 1];
+      for (const o of S.prvky) {
+        const a = pred[o.id], b = dal[o.id];
+        if (!a || !b || (Math.abs(a.x - b.x) < .01 && Math.abs(a.y - b.y) < .01)) continue;
+        s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#fff" stroke-opacity="${(.6 * op / SLABNUTI[0]).toFixed(2)}" stroke-width=".05" stroke-dasharray=".06 .12" stroke-linecap="round"/>`;
+        s += `<g opacity="${op}">${kresliPrvek(o, a, false).replace('class="prvek"', 'class="duch-prvek" pointer-events="none"')}</g>`;
+      }
     }
   }
   $('#vrstvaDuchu').innerHTML = s;
@@ -1124,7 +1130,7 @@ function vykresliPlochu() {
     if (!cisty()) for (const x of S.cary) if (x.krok === S.cur - 1) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu, kcisty
     for (const x of S.cary) if (x.krok === S.cur) { const p = anim.cary[x.id] ?? 1; if (p > 0) c += odhal(kresliCaru(x, false, false, je3D()), x, p); }
   } else {
-    if (!cisty()) for (const x of S.cary) if (x.krok !== S.cur) c += kresliCaru(x, false, true, je3D()); // Kolo kbezduchu, kcisty
+    if (!cisty()) for (const x of [...S.cary].sort((u, v) => u.krok - v.krok)) if (slabnuti(x.krok)) c += kresliCaru(x, false, slabnuti(x.krok), je3D()); // Kolo kbezduchu, kcisty, kslabnuti
     for (const x of S.cary) if (x.krok === S.cur) c += kresliCaru(x, jeVybrano('cara', x.id), false, je3D());
   }
   $('#vrstvaCar').innerHTML = c;
@@ -1506,7 +1512,7 @@ function vykresliPostavy() {
     if (p <= 0) continue;
     const x = c.typ === 'oblouk' ? oblouk3D(c, p) : c.typ === 'odraz' ? odraz3D(c, p) : c.typ === 'uder' && ((c.mic && polohy()[c.mic]) || utokOdHrace(c)) ? utok3D(c, p) : null;
     if (!x) continue;
-    if (minuly) x.svg = `<g opacity=".28" pointer-events="none">${x.svg}</g>`;
+    if (minuly) x.svg = `<g opacity="${SLABNUTI[0]}" pointer-events="none">${x.svg}</g>`; /* Kolo kslabnuti */
     polozky.push(x);
   }
   // Kolo 3: síť je svislá rovina – co stojí na straně kamery, kreslí se celé před ní (i před sloupky),
