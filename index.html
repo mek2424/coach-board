@@ -575,14 +575,14 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
             </g>
           </symbol>
         </defs>
-        <g id="vrstvaHriste"></g>
+        <g id="svet"><g id="vrstvaHriste"></g>
         <g id="vrstvaZon"></g>
         <g id="vrstvaDuchu"></g>
         <g id="vrstvaPomucek"></g>
         <g id="vrstvaCar"></g>
         <g id="vrstvaPrvku"></g>
         <g id="vrstvaZachytuCar"></g>
-        <g id="vrstvaUchytu"></g>
+        <g id="vrstvaUchytu"></g></g>
       </svg>
   <svg id="postavy" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
   </div>
@@ -1014,10 +1014,19 @@ const vsechnyPrvky = () => anim ? [...S.prvky, ...anim.virt] : S.prvky;
 const $ = (s) => document.querySelector(s);
 const deska = $('#deska');
 
+// Kolo kpulbok (196A): přehrávač, polovina, Plán, široká obrazovka → otočit o 90° (síť vpravo svisle)
+const PUL_BOK_VB = [-14.806, -2, 23.111, 13];
+const pulBokem = () => !!PREHRAVAC && S.kurt === 'pul' && !je3D() && innerWidth > innerHeight;
+let bylBokem = false;
+function narovnejTexty() {
+  if (!pulBokem()) return;
+  for (const t of deska.querySelectorAll('#svet text')) t.setAttribute('transform', `rotate(-90 ${t.getAttribute('x') || 0} ${t.getAttribute('y') || 0})`);
+}
 function vykresliHriste() {
-  const H = HRISTE[S.kurt];
-  deska.setAttribute('viewBox', H.vb.join(' '));
-  const [vx, vy, vw, vh] = H.vb;
+  const H = HRISTE[S.kurt], bok = pulBokem(); bylBokem = bok;
+  deska.setAttribute('viewBox', (bok ? PUL_BOK_VB : H.vb).join(' '));
+  $('#svet').setAttribute('transform', bok ? 'rotate(90)' : '');
+  const [vx, vy, vw, vh] = bok ? [PUL_BOK_VB[1], -(PUL_BOK_VB[0] + PUL_BOK_VB[2]), PUL_BOK_VB[3], PUL_BOK_VB[2]] : H.vb;
   let s = `<rect class="ramecek" x="${vx}" y="${vy}" width="${vw}" height="${vh}" rx=".45" fill="${BARVA.zamezi}"/>`;
   if (S.kurt === 'cele') {
     s += `<rect x="0" y="0" width="18" height="9" fill="${BARVA.dvorec}" stroke="${BARVA.cara}" stroke-width="${CARA}"/>`;
@@ -1067,6 +1076,7 @@ function vykresliZony() {
     s += `<text x="${z.x + z.w / 2}" y="${z.y + z.h / 2 + .08}" fill="#fff" fill-opacity=".6" font-family="Bebas Neue, Impact, sans-serif" font-size="1.9" text-anchor="middle" dominant-baseline="central" pointer-events="none">${z.n}</text>`;
   }
   $('#vrstvaZon').innerHTML = s;
+  narovnejTexty(); /* Kolo kpulbok */
 }
 let bezDuchu = false; // Kolo kbezduchu: při vykreslení obrázku bez duchů
 const cisty = () => bezDuchu || !!PREHRAVAC; // Kolo kcisty: video, obrázky a přehrávač bez duchů a koleček připnutí
@@ -1606,6 +1616,7 @@ $('#kameraOtevrit').addEventListener('pointermove', (ev) => {
 $('#kameraOtevrit').addEventListener('pointerup', () => { if (tahMini?.jede) { ulozPanel(); tahMini.potlac = true; } else tahMini = null; });
 $('#kameraOtevrit').addEventListener('click', () => { if (tahMini?.potlac) { tahMini = null; return; } tahMini = null; panelKamery.zavreno = false; ulozPanel(); vykresli(); });
 window.addEventListener('resize', () => umistiPanel());
+window.addEventListener('resize', () => { if (PREHRAVAC && pulBokem() !== bylBokem) vykresli(); }); // Kolo kpulbok: otočení telefonu
 
 // ------------------------------------------------------------ Kolo 4: animace kroků
 // Krok N: vše se přesune z polohy na konci kroku N−1 do polohy kroku N (plynulý rozjezd i dojezd), hráč se otáčí kratší cestou.
@@ -2639,6 +2650,7 @@ function vykresliPrvky() {
   let p = '', d = '';
   for (const o of poradiKresleni()) { const q = polohy()[o.id]; if (!q) continue; const s = kresliPrvek(o, q, jeVybrano('prvek', o.id), je3D()); if (podCarami(o)) d += s; else p += s; }
   $('#vrstvaPomucek').innerHTML = d; $('#vrstvaPrvku').innerHTML = p;
+  narovnejTexty(); /* Kolo kpulbok */
 }
 function vykresliPlochuBezPlovaku() {
   let p = '';
