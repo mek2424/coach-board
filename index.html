@@ -1179,10 +1179,11 @@ function vykresliPlochu() {
   vykresliPostavy();
   ukazPlovak();
 }
+let uchytyPodlahy = []; /* Kolo kpanel (206A): úchyty kreslené do podlahy, ve 3D se zopakují navrch */
 function vykresliUchyty() {
-  let s = '';
+  let s = ''; uchytyPodlahy = [];
   // Kolo 3: úchyty mají kolem sebe větší neviditelnou plochu na chycení
-  const bod = (x, y, role, barva = '#FFC72C') => `<circle class="uchyt" data-role="${role}" cx="${x}" cy="${y}" r="${DOTEK ? .75 : .5}" fill="transparent" style="cursor:grab"/><circle class="uchyt" data-role="${role}" cx="${x}" cy="${y}" r=".22" fill="${barva}" stroke="#1B2430" stroke-width=".04" style="cursor:grab"/>`;
+  const bod = (x, y, role, barva = '#FFC72C') => (role !== 'toc' && uchytyPodlahy.push({ x, y, role, barva }), '') + `<circle class="uchyt" data-role="${role}" cx="${x}" cy="${y}" r="${DOTEK ? .75 : .5}" fill="transparent" style="cursor:grab"/><circle class="uchyt" data-role="${role}" cx="${x}" cy="${y}" r=".22" fill="${barva}" stroke="#1B2430" stroke-width=".04" style="cursor:grab"/>`;
   if (vyber?.druh === 'prvek') {
     const o = S.prvky.find((x) => x.id === vyber.id), t = o && TYPY[o.typ], q = o && polohy()[o.id];
     if (t?.delka && q) {
@@ -1593,7 +1594,9 @@ function vykresliPostavy() {
       tocUchyt = `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#FFC72C" stroke-width="2" pointer-events="none"/><circle class="uchyt" data-role="toc" cx="${b[0]}" cy="${b[1]}" r="16" fill="transparent" style="pointer-events:auto;cursor:grab"/><circle class="uchyt" data-role="toc" cx="${b[0]}" cy="${b[1]}" r="8" fill="#fff" stroke="#1B2430" stroke-width="1.5" style="pointer-events:auto;cursor:grab"/>`;
     }
   }
-  vrstva.innerHTML = caryPodlahy3D() + [...za, ...polozky.filter((x) => x.sit), ...pred].map((x) => x.svg).join('') + tocUchyt; /* Kolo kcary3d */
+  // Kolo kpanel (206A): úchyty délky, rozestupu a šipek ve 3D navrch, ať je nezakryje postava, zeď ani odraz
+  const navrch = vyber && !vice ? uchytyPodlahy.map((u) => { const b = K.proj(u.x, u.y, 0); return `<circle class="uchyt" data-role="${u.role}" cx="${b[0]}" cy="${b[1]}" r="${DOTEK ? 16 : 12}" fill="transparent" style="pointer-events:auto;cursor:grab"/><circle class="uchyt" data-role="${u.role}" cx="${b[0]}" cy="${b[1]}" r="7" fill="${u.barva}" stroke="#1B2430" stroke-width="1.5" style="pointer-events:auto;cursor:grab"/>`; }).join('') : '';
+  vrstva.innerHTML = caryPodlahy3D() + [...za, ...polozky.filter((x) => x.sit), ...pred].map((x) => x.svg).join('') + tocUchyt + navrch; /* Kolo kcary3d, kpanel */
 }
 
 // ------------------------------------------------------------ ovládání kamery: zavřít a přesunout
@@ -2277,6 +2280,16 @@ function gesto() {
   S.pohled.cil = [zaokr(tah.c0[0] + tah.m0.x - q.x), zaokr(tah.c0[1] + tah.m0.y - q.y)];
   vykresli();
 }
+// Kolo kpanel (206A): ze všech úchytů, jejichž plocha je pod prstem, vyhraje ten se středem nejblíž
+function nejblizsiUchyt(ev) {
+  let nej = null, nd = Infinity;
+  for (const c of plocha.querySelectorAll('.uchyt[data-role]')) {
+    const R = c.getBoundingClientRect(); if (!R.width) continue;
+    const d = Math.hypot(ev.clientX - (R.left + R.width / 2), ev.clientY - (R.top + R.height / 2));
+    if (d <= Math.max(R.width, R.height) / 2 && d < nd) { nd = d; nej = c; }
+  }
+  return nej;
+}
 plocha.addEventListener('pointerdown', (ev) => {
   if (ev.pointerType === 'touch' && dotyky.size >= 2) { zacniGesto(ev); return; }
   if (je3D() && ruka && ev.button === 0) {
@@ -2298,7 +2311,7 @@ plocha.addEventListener('pointerdown', (ev) => {
   if (ev.button !== undefined && ev.button > 0) return;
   zavriKvet(); zavriZony(); zavriSkupinu();
   const p = naMetry(ev);
-  const uchyt = ev.target.closest('.uchyt');
+  const uchyt = nejblizsiUchyt(ev) || ev.target.closest('.uchyt'); /* Kolo kpanel (206A) */
   if (uchyt && vyber) {
     zapamatuj();
     tah = { druh: 'uchyt', role: uchyt.dataset.role, zmeneno: false };
@@ -2665,10 +2678,39 @@ function ukazPlovak() {
   if (vol && document.activeElement !== vol) { const H = o.vrchol ?? VRCHOL; vol.value = H; plovak.querySelector('#vyskaObloukuText').textContent = textVysky(H); }
   const vsl = plovak.querySelector('#vyskaMice');
   if (vsl && document.activeElement !== vsl) { const z = polohy()[o.id]?.z ?? VYSKY.mic; vsl.value = z; plovak.querySelector('#vyskaText').textContent = textVysky(z); }
-  const s = naObrazovku(p.x, p.y, p.z || 0), j = $('#jeviste').getBoundingClientRect();
-  const w = plovak.offsetWidth, hgt = plovak.offsetHeight;
-  plovak.style.left = Math.max(8, Math.min(j.width - w - 8, s.x - w / 2)) + 'px';
-  plovak.style.top = Math.max(8, s.y - hgt - 10) + 'px';
+  const s = naObrazovku(p.x, p.y, p.z || 0);
+  umistiPlovak(s.x - plovak.offsetWidth / 2, s.y - plovak.offsetHeight - 10); /* Kolo kpanel (205A) */
+}
+// Kolo kpanel (205A): panel stojí nad prvkem jako dřív; když by zakryl úchyt nebo panel kamery, zkusí pod, vedle a šikmo
+// a vezme první místo bez překryvu. Během tažení úchytu stojí.
+function umistiPlovak(x0, y0) {
+  if (tah?.druh === 'uchyt' && plovak.dataset.umisten === plovak.dataset.klic) return;
+  const j = $('#jeviste').getBoundingClientRect(), w = plovak.offsetWidth, h = plovak.offsetHeight, G = 10;
+  const vJ = (R) => ({ l: R.left - j.left, t: R.top - j.top, r: R.right - j.left, b: R.bottom - j.top });
+  const omez = (x, y) => [Math.max(8, Math.min(j.width - w - 8, x)), Math.max(8, Math.min(j.height - h - 8, y))];
+  const tvrde = [], mekke = [], cil = { l: x0 + w / 2, t: y0 + h + G, r: x0 + w / 2, b: y0 + h + G };
+  const rozsir = (q) => { cil.l = Math.min(cil.l, q.l); cil.t = Math.min(cil.t, q.t); cil.r = Math.max(cil.r, q.r); cil.b = Math.max(cil.b, q.b); };
+  for (const c of document.querySelectorAll('#plocha .uchyt[data-role]')) {
+    if (c.getAttribute('fill') === 'transparent') continue;
+    const R = c.getBoundingClientRect(); if (!R.width) continue;
+    const q = vJ(R); tvrde.push({ l: q.l - 6, t: q.t - 6, r: q.r + 6, b: q.b + 6 }); rozsir(q);
+  }
+  if (vyber?.druh === 'prvek') for (const e of document.querySelectorAll(`#postavy .prvek[data-id="${vyber.id}"], #deska .prvek[data-id="${vyber.id}"] > :first-child`)) {
+    const R = e.getBoundingClientRect(); if (R.width) { const q = vJ(R); mekke.push(q); rozsir(q); }
+  }
+  for (const id of ['#kamera', '#kameraOtevrit']) { const e = $(id); if (e && !e.hidden && e.offsetWidth) tvrde.push(vJ(e.getBoundingClientRect())); }
+  const prekryv = (a, b, seznam) => seznam.reduce((v, o) => v + Math.max(0, Math.min(a + w, o.r) - Math.max(a, o.l)) * Math.max(0, Math.min(b + h, o.b) - Math.max(b, o.t)), 0);
+  const cx = (cil.l + cil.r) / 2, cy = (cil.t + cil.b) / 2;
+  const mista = [[x0, y0], [cx - w / 2, cil.t - h - G], [cx - w / 2, cil.b + G], [cil.r + G, cy - h / 2], [cil.l - w - G, cy - h / 2],
+    [cil.r + G, cil.t - h - G], [cil.l - w - G, cil.t - h - G], [cil.r + G, cil.b + G], [cil.l - w - G, cil.b + G]];
+  let nej = null, nejS = Infinity, mekke0 = null;
+  for (const [x, y] of mista) {
+    const [a, b] = omez(x, y), t = prekryv(a, b, tvrde), m = prekryv(a, b, mekke);
+    if (mekke0 === null) mekke0 = m;
+    if (!t && m <= mekke0) { nej = [a, b]; break; }
+    if (t * 1e6 + m < nejS) { nejS = t * 1e6 + m; nej = [a, b]; }
+  }
+  plovak.style.left = nej[0] + 'px'; plovak.style.top = nej[1] + 'px'; plovak.dataset.umisten = plovak.dataset.klic;
 }
 // Kolo kpomucky: pomůcky pod čarami, hráči a míče nad nimi
 const podCarami = (o) => naZemi(o) || TYPY[o.typ]?.sk === 'pomucky';
@@ -3446,8 +3488,8 @@ const NAPOVEDA = [
   { skupina: 'Hráči, míč a pomůcky', bloky: [
     { nazev: 'Přidávání a úpravy', ik: 'hraci', ot: [
       { q: 'Jak přidám hráčku nebo pomůcku?', a: 'V liště nástrojů otevři Hráči a trenéři, Míč nebo Pomůcky a vyber druh. Pak klepni do hřiště, kam ho chceš dát – nebo ho z nabídky rovnou přetáhni na hřiště.', kw: 'pridat hrac hracka pomucka kuzel kos delo trener', obr: 'hraci' },
-      { q: 'Jak změním číslo, barvu nebo typ hráčky?', a: 'Klepni na ni. Nad ní se ukáže panel: první tlačítko přepíná typ dokola Hráč → Útok → Blok, dál je Barva a pole pro číslo nebo písmeno.', kw: 'cislo barva typ hrace utok blok panel', obr: 'panel' },
-      { q: 'Jak hráčku otočím?', a: 'U vybrané hráčky táhni za kulatý úchyt na konci krátké čáry, která z ní vede. Natočení platí pro aktuální krok.', kw: 'otocit natoceni smer uchyt' },
+      { q: 'Jak změním číslo, barvu nebo typ hráčky?', a: 'Klepni na ni. U ní se ukáže panel (obvykle nad ní; když by zakryl úchyt, posune se vedle nebo pod ni): první tlačítko přepíná typ dokola Hráč → Útok → Blok, dál je Barva a pole pro číslo nebo písmeno.', kw: 'cislo barva typ hrace utok blok panel', obr: 'panel' },
+      { q: 'Jak hráčku otočím?', a: 'U vybrané hráčky táhni za kulatý úchyt na konci krátké čáry, která z ní vede. Natočení platí pro aktuální krok. Panel úchyt nikdy nezakryje. Když jsou úchyty blízko sebe, chytí se ten nejblíž prstu nebo myši.', kw: 'otocit natoceni smer uchyt panel zakryva blizko' },
       { q: 'Co je zorné pole?', a: 'Kužel před hráčkou, který ukazuje, kam se dívá. Zapneš ho v panelu tlačítkem s okem. Platí jen v kroku, kde ho zapneš – v dalších krocích se dá zapnout jinak.', kw: 'zorne pole kuzel oko pohled' },
       { q: 'Jak prvek zkopíruju nebo smažu?', a: 'V panelu vybraného prvku je Duplikovat (Ctrl+D) a koš (Delete). Smazání jde vrátit tlačítkem Vrátit v hlášce. Prvek se maže od aktuálního kroku dál; v prvním kroku zmizí úplně.', kw: 'duplikovat kopie smazat kos delete' },
       { q: 'Jak vyberu víc věcí najednou?', a: 'Na počítači táhni na prázdném místě obdélník, nebo klikej se Shiftem či Ctrl. Na tabletu a telefonu klepni na Výběr v liště nástrojů – přepne se na Výběr více a pak klepnutím přidáváš a ubíráš. Vybrané věci posuneš najednou a Barva všech v panelu je přebarví naráz.', kw: 'vyber vice hromadny obdelnik shift', obr: 'vyber' }
@@ -3499,6 +3541,7 @@ const NAPOVEDA = [
   { skupina: '3D', bloky: [
     { nazev: 'Pohled 3D', ik: 'kamera', ot: [
       { q: 'Jak přepnu do 3D?', a: 'Přepínačem Plán | 3D v horní liště. Ve 3D stojí hráčky jako figurky, míč letí vzduchem a síť je opravdová. Kreslit a posouvat jde i ve 3D.', kw: '3d plan pohled prepnout' },
+      { q: 'Jak ve 3D změním délku zdi nebo konec šipky?', a: 'Stejně jako v plánu: vyber zeď, lavičku, kuličky nebo šipku a táhni za žlutý nebo bílý úchyt. Ve 3D jsou úchyty vždy navrch, i když stojí za zdí nebo figurkou.', kw: '3d uchyt delka zed lavicka sipka konec rozestup' },
       { q: 'Jak otočím a přiblížím pohled?', a: 'Panelem kamery: posuvník otáčení a šipky o 90°, sklon, přiblížení − / +, Celé hřiště (zruší přiblížení) a Ruka pro posun obrazu. Na počítači otáčíš pravým tlačítkem myši, posouváš Shiftem + pravým tlačítkem, přibližuješ kolečkem. Na dotyku dvěma prsty otáčíš a posouváš, sevřením přibližuješ. Panel jde přesunout za úchyt nebo schovat křížkem.', kw: 'kamera otocit priblizit sklon ruka posun panel', obr: '3d' },
       { q: 'Ukládá se pohled k cvičení?', a: 'Ano – plán nebo 3D, natočení a sklon se uloží s cvičením a stejně se otevřou i v přehrávači v Trenérovi.', kw: 'pohled ulozit kamera vychozi' }
     ] }
