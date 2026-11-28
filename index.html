@@ -452,6 +452,17 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
 /* Kolo iPad: pilulka kamery po řádcích, značky otočení po 90°, ruka, větší plochy pro prst */
 .kam-radek { display: flex; align-items: center; gap: 4px; }
 .otoceni { --palec: 8px; position: relative; display: flex; align-items: center; }
+#sklonPlus svg { transform: scaleY(-1); } /* Kolo kkamera: šipka nahoru = převrácená šipka dolů */
+/* Kolo kkamera (213C): natočení – zelená od 0° uprostřed k jezdci */
+#otoceni { -webkit-appearance: none; appearance: none; background: transparent; --a: .5; --b: .5; }
+#otoceni::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line);
+  background: linear-gradient(to right, var(--paper) calc(var(--palec) + (100% - 2 * var(--palec)) * var(--a)), var(--brand) 0, var(--brand) calc(var(--palec) + (100% - 2 * var(--palec)) * var(--b)), var(--paper) 0); }
+#otoceni::-moz-range-track { height: 8px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line);
+  background: linear-gradient(to right, var(--paper) calc(var(--palec) + (100% - 2 * var(--palec)) * var(--a)), var(--brand) 0, var(--brand) calc(var(--palec) + (100% - 2 * var(--palec)) * var(--b)), var(--paper) 0); }
+#otoceni::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: calc(2 * var(--palec)); height: calc(2 * var(--palec)); margin-top: calc(4px - var(--palec)); border: 0; border-radius: 50%; background: var(--brand); cursor: pointer; }
+#otoceni::-moz-range-thumb { width: calc(2 * var(--palec)); height: calc(2 * var(--palec)); border: 0; border-radius: 50%; background: var(--brand); cursor: pointer; }
+.otoceni i[style="--k:.5"] { height: 9px; }
+.pilulka.kamera .otoceni { --palec: 8px; } /* jezdec všude 16 px jako u ostatních posuvníků, čárky k němu */
 .otoceni input { width: 140px; margin: 0; }
 .otoceni i { position: absolute; bottom: -3px; left: calc(var(--palec) + (100% - 2 * var(--palec)) * var(--k)); width: 2px; height: 6px; margin-left: -1px;
   border-radius: 1px; background: var(--ink-faint); pointer-events: none; }
@@ -675,14 +686,16 @@ body.prehravac .prvek, body.prehravac .cara { pointer-events: none !important; c
     <button type="button" class="kam-tah" id="kameraTah" title="Přesunout" aria-label="Přesunout ovládání kamery" data-ik="tah"></button>
     <div class="kam-radek">
       <button id="kameraL" class="tl ikona" type="button" title="Otočit o 90° doleva" aria-label="Otočit pohled o 90° doleva"><svg class="ik fa" viewBox="0 0 320 512" aria-hidden="true"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z"/></svg></button>
-      <span class="otoceni"><input id="otoceni" type="range" min="0" max="360" step="1" value="0" aria-label="Otočení pohledu"><i style="--k:0"></i><i style="--k:.25"></i><i style="--k:.5"></i><i style="--k:.75"></i><i style="--k:1"></i></span>
+      <span class="otoceni"><input id="otoceni" type="range" min="-180" max="180" step="1" value="0" aria-label="Otočení pohledu"><i style="--k:0"></i><i style="--k:.25"></i><i style="--k:.5"></i><i style="--k:.75"></i><i style="--k:1"></i></span>
       <button id="kameraP" class="tl ikona" type="button" title="Otočit o 90° doprava" aria-label="Otočit pohled o 90° doprava"><svg class="ik fa" viewBox="0 0 320 512" aria-hidden="true"><path d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z"/></svg></button>
       <span class="uhel" id="otoceniText">0°</span>
     </div>
     <span class="del"></span>
     <div class="kam-radek">
     <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M5 20 17 6"/><path d="M11 20a6 6 0 0 0-1.6-4.1"/></svg>
+    <button id="sklonMinus" class="tl ikona" type="button" title="Plošší pohled" aria-label="Plošší pohled" data-ik="dolu"></button><!-- Kolo kkamera (209A, 210B) -->
     <input id="sklon" type="range" min="20" max="88" step="1" value="40" aria-label="Sklon pohledu">
+    <button id="sklonPlus" class="tl ikona" type="button" title="Víc shora" aria-label="Víc shora" data-ik="dolu"></button>
     <span class="uhel" id="sklonText">40°</span>
     </div>
     <span class="del"></span>
@@ -1228,7 +1241,10 @@ function vykresli() {
   $('#sklon').value = S.pohled.sklon; $('#sklonText').textContent = S.pohled.sklon + '°';
   // Kolo iPad: posuvníky otočení a přiblížení, ruka jen ve 3D
   const u = Math.round(uhelKamery()) % 360;
-  $('#otoceni').value = u; $('#otoceniText').textContent = u + '°';
+  const uz = ((u % 360) + 540) % 360 - 180; /* Kolo kkamera (211A): 0° uprostřed, vlevo záporné */
+  $('#otoceni').value = uz; $('#otoceni').style.setProperty('--a', Math.min(.5, (uz + 180) / 360)); $('#otoceni').style.setProperty('--b', Math.max(.5, (uz + 180) / 360));
+  $('#otoceniText').textContent = String(uz).replace('-', '−') + '°';
+  $('#sklonMinus').disabled = S.pohled.sklon <= 20; $('#sklonPlus').disabled = S.pohled.sklon >= 88;
   $('#zoom').value = Math.log(S.pohled.zoom || 1).toFixed(2);
   if (!je3D() && ruka) { ruka = false; zvyrazniNastroj(); }
   if (PREHRAVAC) obnovVideo(); // Kolo kvideo
@@ -2981,11 +2997,15 @@ plocha.addEventListener('wheel', (ev) => {
 }, { passive: false });
 $('#kameraCele').onclick = () => { S.pohled.zoom = 1; S.pohled.cil = [0, 0]; zmena(); };
 $('#sklon').addEventListener('input', (e) => { S.pohled.sklon = +e.target.value; zmena(); });
+// Kolo kkamera (209A): sklon tlačítky po 10° na násobky deseti, meze 20–88°
+const posunSklon = (d) => { const v = S.pohled.sklon; S.pohled.sklon = Math.min(88, Math.max(20, d > 0 ? Math.floor(v / 10) * 10 + 10 : Math.ceil(v / 10) * 10 - 10)); zmena(); };
+$('#sklonMinus').onclick = () => posunSklon(-1);
+$('#sklonPlus').onclick = () => posunSklon(1);
 // Kolo iPad: otočení posuvníkem (u násobků 90° se přichytí), přiblížení posuvníkem a tlačítky −/+ ke středu obrazu
 $('#otoceni').addEventListener('input', (e) => {
   let u = +e.target.value; const k = Math.round(u / 90) * 90;
   if (Math.abs(u - k) <= 4) u = k;
-  S.pohled.uhel = u % 360; zmena();
+  S.pohled.uhel = (u + 360) % 360; zmena(); /* Kolo kkamera (211A): posuvník −180…180, uloženo dál 0–359 */
 });
 const nastavZoom = (z) => { S.pohled.zoom = Math.round(Math.min(4, Math.max(.6, z)) * 100) / 100; zmena(); };
 $('#zoom').addEventListener('input', (e) => nastavZoom(Math.exp(+e.target.value)));
@@ -3542,7 +3562,7 @@ const NAPOVEDA = [
     { nazev: 'Pohled 3D', ik: 'kamera', ot: [
       { q: 'Jak přepnu do 3D?', a: 'Přepínačem Plán | 3D v horní liště. Ve 3D stojí hráčky jako figurky, míč letí vzduchem a síť je opravdová. Kreslit a posouvat jde i ve 3D.', kw: '3d plan pohled prepnout' },
       { q: 'Jak ve 3D změním délku zdi nebo konec šipky?', a: 'Stejně jako v plánu: vyber zeď, lavičku, kuličky nebo šipku a táhni za žlutý nebo bílý úchyt. Ve 3D jsou úchyty vždy navrch, i když stojí za zdí nebo figurkou.', kw: '3d uchyt delka zed lavicka sipka konec rozestup' },
-      { q: 'Jak otočím a přiblížím pohled?', a: 'Panelem kamery: posuvník otáčení a šipky o 90°, sklon, přiblížení − / +, Celé hřiště (zruší přiblížení) a Ruka pro posun obrazu. Na počítači otáčíš pravým tlačítkem myši, posouváš Shiftem + pravým tlačítkem, přibližuješ kolečkem. Na dotyku dvěma prsty otáčíš a posouváš, sevřením přibližuješ. Panel jde přesunout za úchyt nebo schovat křížkem.', kw: 'kamera otocit priblizit sklon ruka posun panel', obr: '3d' },
+      { q: 'Jak otočím a přiblížím pohled?', a: 'Panelem kamery: posuvník otáčení (0° je uprostřed, doleva záporné, doprava kladné) a šipky o 90°, sklon posuvníkem nebo šipkami ˅ ˄ po 10°, přiblížení − / +, Celé hřiště (zruší přiblížení) a Ruka pro posun obrazu. Na počítači otáčíš pravým tlačítkem myši, posouváš Shiftem + pravým tlačítkem, přibližuješ kolečkem. Na dotyku dvěma prsty otáčíš a posouváš, sevřením přibližuješ. Panel jde přesunout za úchyt nebo schovat křížkem.', kw: 'kamera otocit natoceni stupne priblizit sklon sipky ruka posun panel', obr: '3d' },
       { q: 'Ukládá se pohled k cvičení?', a: 'Ano – plán nebo 3D, natočení a sklon se uloží s cvičením a stejně se otevřou i v přehrávači v Trenérovi.', kw: 'pohled ulozit kamera vychozi' }
     ] }
   ] },
@@ -3566,7 +3586,7 @@ const NAPOVEDA = [
   ] }
 ];
 const napNorm = (t) => { t = String(t || '').toLowerCase().normalize('NFD'); let o = ''; for (const z of t) { const c = z.charCodeAt(0); if (c < 0x300 || c > 0x36f) o += z; } return o; };
-const NAP_VERZE = 66; // Kolo knapoveda: zvýšit při přefocení snímků (service worker má soubory v cache)
+const NAP_VERZE = 69; // Kolo knapoveda: zvýšit při přefocení snímků (service worker má soubory v cache)
 const napObr = (o) => o.obr ? `<img class="nap-obr" loading="lazy" src="napoveda/${o.obr}.webp?v=${NAP_VERZE}" alt="" width="1280" height="800">` : '';
 const napOdpoved = (o) => `${esc(o.a)}${napObr(o)}`;
 let napOkno = null;
