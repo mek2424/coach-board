@@ -1569,7 +1569,7 @@ function vykresliPostavy() {
   }
   for (const c of S.cary) {
     // Kolo 4: při přehrávání šipky kroku jen do části, šipky předchozího kroku vybledlé
-    const ted = c.krok === S.cur, minuly = !!anim && c.krok === S.cur - 1;
+    const ted = c.krok === S.cur, minuly = !!anim && !cisty() && c.krok === S.cur - 1; /* Kolo kduch3d: video a přehrávač bez duchů i ve 3D */
     if (!ted && !minuly) continue;
     const p = anim && ted ? (anim.cary[c.id] ?? 1) : 1;
     if (p <= 0) continue;
