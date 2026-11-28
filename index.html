@@ -1241,7 +1241,8 @@ function vykresli() {
   $('#sklon').value = S.pohled.sklon; $('#sklonText').textContent = S.pohled.sklon + '°';
   // Kolo iPad: posuvníky otočení a přiblížení, ruka jen ve 3D
   const u = Math.round(uhelKamery()) % 360;
-  const uz = ((u % 360) + 540) % 360 - 180; /* Kolo kkamera (211A): 0° uprostřed, vlevo záporné */
+  let uz = ((u % 360) + 540) % 360 - 180; /* Kolo kkamera (211A): 0° uprostřed, vlevo záporné */
+  if (uz === -180 && +$('#otoceni').value > 0) uz = 180; /* Kolo kkamera2: 180° zůstane vpravo, když tam posuvník už je nebo z té strany přišel */
   $('#otoceni').value = uz; $('#otoceni').style.setProperty('--a', Math.min(.5, (uz + 180) / 360)); $('#otoceni').style.setProperty('--b', Math.max(.5, (uz + 180) / 360));
   $('#otoceniText').textContent = String(uz).replace('-', '−') + '°';
   $('#sklonMinus').disabled = S.pohled.sklon <= 20; $('#sklonPlus').disabled = S.pohled.sklon >= 88;
